@@ -1,0 +1,5 @@
+Deixe a academia de Los Santos com mais vida! Agora terão diversas pessoas fazendo exercícios e fazendo algo dentro dela
+
+Instalação:
+Apenas mova a pasta pro modloader
+Autor: SanKing
