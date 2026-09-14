@@ -37,7 +37,7 @@ O QUE HÁ DE NOVO E O QUE FOI OTIMIZADO NESTA VERSÃO:
 
 3. Reescrita Completa em GTA3script:
    - Totalmente reescrito na sintaxe oficial e moderna GTA3script da Rockstar Games,
-     enxuto, estruturado e padronizado, respeitando os limites da engine.
+     enxuto, estruturado e padronizado, respeitando os limites da engine (26 vars).
 
 4. Fim do Bug do Interior ($ACTIVE_INTERIOR == 5):
    - O mod antigo verificava apenas se o ID do interior era 5, disparando em outros
