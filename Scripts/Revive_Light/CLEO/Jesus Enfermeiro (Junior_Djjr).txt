@@ -1,0 +1,52 @@
+{$CLEO .cs}
+
+nop 
+
+:Noname_2
+wait 0
+  is_player_playing $PLAYER_CHAR
+goto_if_false @Noname_352
+read_memory 29@ = read_memory 12010640 size 4 virtual_protect 0
+29@ += 4
+read_memory 29@ = read_memory 29@ size 4 virtual_protect 0
+30@ = 0
+
+:Noname_58
+read_memory 28@ = read_memory 29@ size 1 virtual_protect 0
+29@ += 1
+if and
+  28@ >= 0
+  128 > 28@
+goto_if_false @Noname_327
+add_int_lvar_to_int_lvar 28@ += 30@
+if or
+  is_char_model 28@ model == #LAEMT1
+  is_char_model 28@ model == #SFEMT1
+  is_char_model 28@ model == #LVEMT1
+goto_if_false @Noname_327
+  is_char_playing_anim 28@ performing_animation "CPR"
+get_char_anim_current_time 21@ = actor 28@ animation "CPR"
+if 
+  21@ > 0.2
+goto_if_false @Noname_327
+get_offset_from_char_in_world_coords 1@ 2@ 3@ from_actor 28@ with_offset 0.0 0.0 30.0
+get_offset_from_char_in_world_coords 11@ 12@ 13@ from_actor 28@ with_offset 0.0 0.0 0.0
+create_searchlight 20@ = create_searchlight_at 1@ 2@ 3@ radius 0.0 target 11@ 12@ 13@ radius 2.5
+
+:Noname_281
+  21@ < 0.8
+goto_if_false @Noname_322
+wait 0
+get_char_anim_current_time 21@ = actor 28@ animation "CPR"
+goto @Noname_281
+
+:Noname_322
+delete_searchlight 20@
+
+:Noname_327
+30@ += 256
+  30@ > 35584
+goto_if_false @Noname_58
+
+:Noname_352
+goto @Noname_2
