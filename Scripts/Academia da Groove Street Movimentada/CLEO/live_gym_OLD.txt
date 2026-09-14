@@ -1,0 +1,203 @@
+{$CLEO .cs}
+
+nop 
+script_name 'GYM'
+
+:GYM_13
+wait 100
+if and
+  is_player_playing $PLAYER_CHAR
+  $ACTIVE_INTERIOR == 5
+goto_if_false @GYM_13
+wait 2000
+request_animation "FREEWEIGHTS"
+request_animation "GYMNASIUM"
+request_animation "COP_AMBIENT"
+request_animation "SMOKING"
+request_model #BMYDRUG
+request_model #BMYDJ
+request_model #BMYST
+request_model #WMYJG
+request_model #BMYPOL2
+request_model #HMYDRUG
+request_model #BMYCR
+request_model #HMYCR
+request_model #KMB_DUMBBELL_R
+request_model #CJ_BARSTOOL
+request_model #GYM_TREADMILL
+request_model #GYM_BENCH1
+request_model #CJ_4WAY_CLOTHES
+load_all_models_now 
+
+:GYM_158
+wait 0
+if and
+  has_model_loaded #BMYDRUG
+  has_model_loaded #BMYDJ
+  has_model_loaded #BMYST
+  has_model_loaded #WMYJG
+  has_model_loaded #BMYPOL2
+  has_model_loaded #HMYDRUG
+goto_if_false @GYM_158
+if and
+  has_model_loaded #BMYCR
+  has_model_loaded #HMYCR
+  has_model_loaded #KMB_DUMBBELL_R
+  has_model_loaded #CJ_BARSTOOL
+  has_model_loaded #GYM_TREADMILL
+  has_model_loaded #GYM_BENCH1
+  has_model_loaded #CJ_4WAY_CLOTHES
+goto_if_false @GYM_158
+if and
+  has_animation_loaded "PED"
+  has_animation_loaded "FREEWEIGHTS"
+  has_animation_loaded "GYMNASIUM"
+  has_animation_loaded "COP_AMBIENT"
+  has_animation_loaded "SMOKING"
+goto_if_false @GYM_158
+create_object 1@ = create_object #CJ_BARSTOOL at 756.129 755.388 999.8
+set_object_area_visible 1@ to_interior 5
+create_object 2@ = create_object #CJ_BARSTOOL at 756.129 8.2468 999.8
+set_object_area_visible 2@ to_interior 5
+create_object 3@ = create_object #CJ_BARSTOOL at 756.129 6.0 999.8
+set_object_area_visible 3@ to_interior 5
+create_object 4@ = create_object #CJ_BARSTOOL at 756.129 4.53 999.8
+set_object_area_visible 4@ to_interior 5
+create_object 5@ = create_object #CJ_BARSTOOL at 756.129 5.0076 999.8
+set_object_area_visible 5@ to_interior 5
+create_object 6@ = create_object #GYM_TREADMILL at 773.115 10.9414 999.672
+set_object_heading 6@ Z_angle_to 270.0
+set_object_area_visible 6@ to_interior 5
+create_object 7@ = create_object #GYM_TREADMILL at 773.115 12.3276 999.672
+set_object_heading 7@ Z_angle_to 270.0
+set_object_area_visible 7@ to_interior 5
+create_object 8@ = create_object #GYM_BENCH1 at 771.823 7.4149 999.672
+set_object_area_visible 8@ to_interior 5
+create_object 9@ = create_object #GYM_BENCH1 at 773.95 7.4149 999.672
+set_object_area_visible 9@ to_interior 5
+create_object 10@ = create_object #CJ_4WAY_CLOTHES at 755.392 9.191 1000.6
+set_object_heading 10@ Z_angle_to 270.0
+set_object_area_visible 10@ to_interior 5
+create_char 11@ = create_actor_pedtype PedType.CivMale model #BMYCR at 771.4 12.3027 1000.849
+set_char_heading 11@ Z_angle_to 270.0
+set_char_area_visible 11@ to_interior 5
+task_play_anim 11@ perform_animation "GYM_TREAD_JOG" IFP "GYMNASIUM" framedelta 4.0 loop 1 lockX 0 lockY 0 lockF 0 time -1
+create_char 12@ = create_actor_pedtype PedType.CivMale model #WMYJG at 771.4 10.9204 1000.849
+set_char_heading 12@ Z_angle_to 270.0
+set_char_area_visible 12@ to_interior 5
+task_play_anim 12@ perform_animation "GYM_TREAD_JOG" IFP "GYMNASIUM" framedelta 4.0 loop 1 lockX 0 lockY 0 lockF 0 time -1
+create_object 20@ = create_object #KMB_DUMBBELL_R at 0.0 0.0 0.0
+set_object_area_visible 20@ to_interior 5
+set_object_heading 20@ Z_angle_to 90.0
+create_object 21@ = create_object #KMB_DUMBBELL_R at 0.0 0.0 0.0
+set_object_area_visible 21@ to_interior 5
+set_object_heading 21@ Z_angle_to 90.0
+create_char 13@ = create_actor_pedtype PedType.CivMale model #BMYDRUG at 771.4566 7.3739 1000.71
+set_char_area_visible 13@ to_interior 5
+task_pick_up_object 13@ attach_to_object 20@ offset 0.04 0.0 -0.02 on_bone 6 16 perform_animation "NULL" IFP_file "NULL" time 999999
+task_play_anim 13@ perform_animation "GYM_BARBELL" IFP "FREEWEIGHTS" framedelta 4.0 loop 1 lockX 0 lockY 0 lockF 0 time -1
+create_char 14@ = create_actor_pedtype PedType.CivMale model #BMYPOL2 at 773.6576 7.4052 1000.709
+set_char_area_visible 14@ to_interior 5
+task_pick_up_object 14@ attach_to_object 21@ offset 0.04 0.0 -0.02 on_bone 6 16 perform_animation "NULL" IFP_file "NULL" time 999999
+task_play_anim 14@ perform_animation "GYM_BARBELL" IFP "FREEWEIGHTS" framedelta 4.0 loop 1 lockX 0 lockY 0 lockF 0 time -1
+create_char 15@ = create_actor_pedtype PedType.CivMale model #BMYDJ at 767.2722 -2.4724 1000.719
+set_char_heading 15@ Z_angle_to 185.9322
+set_char_area_visible 15@ to_interior 5
+task_play_anim 15@ perform_animation "GYM_SHADOWBOX" IFP "GYMNASIUM" framedelta 4.0 loop 1 lockX 0 lockY 0 lockF 0 time -1
+create_char 16@ = create_actor_pedtype PedType.CivMale model #HMYDRUG at 769.6318 -2.4529 1000.724
+set_char_heading 16@ Z_angle_to 158.0452
+set_char_area_visible 16@ to_interior 5
+task_play_anim 16@ perform_animation "GYM_SHADOWBOX" IFP "GYMNASIUM" framedelta 4.0 loop 1 lockX 0 lockY 0 lockF 0 time -1
+create_char 17@ = create_actor_pedtype PedType.CivMale model #BMYST at 756.2289 8.8118 1000.7
+set_char_heading 17@ Z_angle_to 67.2502
+set_char_area_visible 17@ to_interior 5
+task_play_anim 17@ perform_animation "COPBROWSE_NOD" IFP "COP_AMBIENT" framedelta 4.0 loop 1 lockX 0 lockY 0 lockF 0 time -1
+
+:GYM_1402
+wait 0
+  get_char_player_is_targeting 18@ = player $PLAYER_CHAR
+if 
+  does_char_exist 18@
+goto_if_false @GYM_1532
+goto @GYM_1437
+
+:GYM_1437
+wait 500
+task_hands_up 18@ hands_up 5000
+task_say 18@ speak_from_audio_table 115
+detach_object 20@ 0.0 0.0 0.0 collision_detection 0
+detach_object 21@ 0.0 0.0 0.0 collision_detection 0
+set_object_dynamic 20@ moveable True
+set_object_dynamic 21@ moveable True
+wait 5000
+mark_char_as_no_longer_needed 18@
+goto @GYM_1402
+
+:GYM_1532
+wait 0
+if 
+  $ACTIVE_INTERIOR == 0
+goto_if_false @GYM_1402
+goto @GYM_1561
+
+:GYM_1561
+wait 2000
+delete_object 1@
+delete_object 2@
+delete_object 3@
+delete_object 4@
+delete_object 5@
+delete_object 6@
+delete_object 7@
+delete_object 8@
+delete_object 9@
+delete_object 10@
+delete_object 20@
+delete_object 21@
+mark_object_as_no_longer_needed 1@
+mark_object_as_no_longer_needed 2@
+mark_object_as_no_longer_needed 3@
+mark_object_as_no_longer_needed 4@
+mark_object_as_no_longer_needed 5@
+mark_object_as_no_longer_needed 6@
+mark_object_as_no_longer_needed 7@
+mark_object_as_no_longer_needed 8@
+mark_object_as_no_longer_needed 9@
+mark_object_as_no_longer_needed 10@
+mark_object_as_no_longer_needed 20@
+mark_object_as_no_longer_needed 21@
+create_char 23@ = create_actor_pedtype PedType.CivMale model #HMYCR at 2228.751 -1720.5699 13.5531
+set_char_heading 23@ Z_angle_to 137.4583
+task_play_anim 23@ perform_animation "M_SMKSTND_LOOP" IFP "SMOKING" framedelta 4.0 loop 1 lockX 0 lockY 0 lockF 0 time -1
+delete_char 11@
+delete_char 12@
+delete_char 13@
+delete_char 14@
+delete_char 15@
+delete_char 16@
+delete_char 18@
+mark_model_as_no_longer_needed #BMYDRUG
+mark_model_as_no_longer_needed #BMYDJ
+mark_model_as_no_longer_needed #BMYST
+mark_model_as_no_longer_needed #BMYCR
+mark_model_as_no_longer_needed #WMYJG
+mark_model_as_no_longer_needed #BMYPOL2
+mark_model_as_no_longer_needed #HMYDRUG
+mark_model_as_no_longer_needed #HMYCR
+mark_char_as_no_longer_needed 11@
+mark_char_as_no_longer_needed 12@
+mark_char_as_no_longer_needed 13@
+mark_char_as_no_longer_needed 14@
+mark_char_as_no_longer_needed 15@
+mark_char_as_no_longer_needed 16@
+mark_char_as_no_longer_needed 18@
+switch_entry_exit 'GYM1' access 0 // Ganton Gym
+wait 10000
+mark_char_as_no_longer_needed 23@
+switch_entry_exit 'GYM1' access 1 // Ganton Gym
+remove_animation "FREEWEIGHTS"
+remove_animation "GYMNASIUM"
+remove_animation "COP_AMBIENT"
+remove_animation "SMOKING"
+goto @GYM_13
+terminate_this_script 
