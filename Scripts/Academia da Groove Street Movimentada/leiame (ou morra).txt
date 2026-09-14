@@ -1,5 +1,89 @@
-Deixe a academia de Los Santos com mais vida! Agora ter�o diversas pessoas fazendo exerc�cios e fazendo algo dentro dela
+================================================================================
+                    Academia da Ganton / Grove Street Movimentada
+                               (Versão Remasterizada)
+================================================================================
 
-Instala��o:
-Apenas mova a pasta pro modloader
-Autor: SanKing
+Autor original: SanKing (2013)
+Refatoração & Otimização: Padrão GTA3script para CLEO 4.4.4 e CLEO+ (2026)
+Compatibilidade: GTA San Andreas (PC) - CLEO 4.4.4+ / CLEO+ / ModLoader
+
+--------------------------------------------------------------------------------
+DESCRIÇÃO:
+--------------------------------------------------------------------------------
+Deixa a famosa academia de Los Santos (Ganton / Grove Street) cheia de vida!
+Diversas pessoas fazendo exercícios, correndo em esteiras, levantando halteres nos
+supinos, praticando shadowboxing (luta) e olhando roupas na recepção, além de um
+pedestre relaxando e fumando um cigarro do lado de fora da academia.
+
+--------------------------------------------------------------------------------
+O QUE HÁ DE NOVO E O QUE FOI OTIMIZADO NESTA VERSÃO:
+--------------------------------------------------------------------------------
+1. Chance Aleatória Individual por Pedestre (Novo Sistema):
+   - O mod antigo SEMPRE spawnava todos os 7 peds ao mesmo tempo.
+   - Criado um sistema de sorteio aleatório individual para cada frequentador:
+     a cada visita do jogador à academia, os pedestres possuem chances próprias
+     de comparecer. Assim, você nunca encontra sempre as mesmas pessoas no local.
+   - Há salvaguarda para nunca deixar a academia 100% deserta.
+   - Carregamento sob demanda: modelos e animações só são carregados na memória
+     caso o atleta correspondente tenha sido sorteado para aparecer.
+
+2. Sistema Dinâmico de Clima / Chuva para o Pedestre Externo (Novo Sistema):
+   - O mod antigo criava o fumante do lado de fora mesmo em tempestades torrenciais.
+   - Agora, se estiver chovendo do lado de fora (lido diretamente da memória de
+     chuva e clima do jogo), o pedestre externo NÃO é gerado.
+   - Se a chuva começar a cair enquanto ele já estiver na calçada fumando, o mod
+     cancela o cigarro, atribui a tarefa de perambular (TASK_WANDER_STANDARD) e o
+     libera imediatamente para a IA do jogo sair andando pela rua procurando abrigo.
+
+3. Reescrita Completa em GTA3script:
+   - Totalmente reescrito na sintaxe oficial e moderna GTA3script da Rockstar Games,
+     enxuto, estruturado e padronizado, respeitando os limites da engine (26 vars).
+
+4. Fim do Bug do Interior ($ACTIVE_INTERIOR == 5):
+   - O mod antigo verificava apenas se o ID do interior era 5, disparando em outros
+     locais como a Academia Cobra de SF, o apartamento do B Dup e o Atrium.
+   - Agora valida tanto o interior quanto a caixa 3D exata da Academia de Ganton.
+
+5. Correção do Banco Fora do Mapa (Objeto 1@):
+   - O objeto 1@ possuía erro de digitação original na coordenada Y (755.388),
+     sendo criado a 750 metros de distância no nada.
+   - Os bancos 4@ e 5@ colidiam um dentro do outro.
+   - Agora os 4 bancos de bar (CJ_BARSTOOL) estão alinhados e espaçados uniformemente
+     ao longo de todo o balcão da recepção.
+
+6. Correção de Vazamento de Memória (Memory Leak do Ped 17@):
+   - O pedestre 17@ (olhando as roupas) NUNCA era deletado no mod antigo por um
+     erro de digitação do autor ("delete_char 18@"). Corrigido com segurança.
+
+7. Fim dos Congelamentos de Tela (Freeze de LOAD_ALL_MODELS_NOW):
+   - Carregamento de modelos e animações feito de forma assíncrona via streaming
+     nativo, sem travadas no FPS ao entrar na academia.
+
+8. Fim da Tranca de 10 Segundos na Porta (switch_entry_exit 'GYM1'):
+   - O bloqueio forçado foi completamente eliminado; agora o jogador pode entrar
+     e sair a qualquer instante.
+
+9. Sistema Dinâmico de Pânico e Reação a Ameaças:
+   - Se o CJ mirar com armas em alguém, disparar tiros ou ferir os ocupantes da
+     academia, os halteres são soltos com física dinâmica realista caindo no chão,
+     os ocupantes gritam em pânico e recebem tarefas de fuga inteligente (TASK_SMART_FLEE_CHAR).
+
+10. Limpeza em Caso de Morte ou Prisão:
+    - Se o jogador for preso ou morrer dentro da academia, todas as entidades
+      são limpas e resetadas imediatamente.
+
+--------------------------------------------------------------------------------
+INSTALAÇÃO:
+--------------------------------------------------------------------------------
+- Com ModLoader (Recomendado):
+  Copie a pasta "Academia da Groove Street Movimentada" para dentro da sua pasta
+  "modloader".
+
+- Sem ModLoader:
+  Copie o arquivo "live_gym.cs" da subpasta CLEO para dentro da sua pasta "CLEO".
+
+--------------------------------------------------------------------------------
+CRÉDITOS:
+--------------------------------------------------------------------------------
+- Autor original: SanKing (2013)
+- Refatoração GTA3script, Sistema Aleatório & Correções: 2026
