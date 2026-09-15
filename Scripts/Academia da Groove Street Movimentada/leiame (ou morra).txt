@@ -27,17 +27,28 @@ O QUE HÁ DE NOVO E O QUE FOI OTIMIZADO NESTA VERSÃO:
    - Carregamento sob demanda: modelos e animações só são carregados na memória
      caso o atleta correspondente tenha sido sorteado para aparecer.
 
-2. Sistema Dinâmico de Clima / Chuva para o Pedestre Externo (Novo Sistema):
-   - O mod antigo criava o fumante do lado de fora mesmo em tempestades torrenciais.
-   - Agora, se estiver chovendo do lado de fora (lido diretamente da memória de
-     chuva e clima do jogo), o pedestre externo NÃO é gerado.
-   - Se a chuva começar a cair enquanto ele já estiver na calçada fumando, o mod
-     cancela o cigarro, atribui a tarefa de perambular (TASK_WANDER_STANDARD) e o
-     libera imediatamente para a IA do jogo sair andando pela rua procurando abrigo.
+2. O Fumante da Calçada Agora Aparece de Verdade + Clima / Chuva:
+   - CAUSA RAIZ CORRIGIDA: a rotina antiga só era chamada dentro de um bloco
+     "IF bGymSpawned = 1", ou seja, apenas no único quadro de 250 ms em que a
+     academia era limpa logo depois de você sair do interior -- e ainda exigia que
+     você estivesse exatamente dentro de uma caixa de 30x30x15 ao redor da porta
+     naquele instante. Em qualquer outra situação (chegando pela rua, voltando
+     depois, estando em outro ponto do bairro) ele simplesmente nunca era criado.
+     Além disso, a rotina lia a variável de TRAVA de clima (0xC81318) em vez do
+     clima real do jogo.
+   - Agora o pedestre externo é verificado/criado a cada ciclo, pelo lado da rua,
+     perto da porta da academia, sem depender de o interior estar carregado, e o
+     clima é lido dos valores de clima atual e próximo (0xC81320 / 0xC8131C).
+   - Se estiver chovendo do lado de fora, o pedestre externo NÃO é gerado.
+   - Se a chuva começar enquanto ele já estiver na calçada fumando, o mod cancela
+     o cigarro, atribui a tarefa de perambular (TASK_WANDER_STANDARD) e o libera
+     imediatamente para a IA do jogo sair andando pela rua procurando abrigo.
+   - Uma espera de 15 s evita que outro fumante apareça no mesmo lugar logo depois
+     de você empurrá-lo, atirar nele ou apenas apontar uma arma para ele.
 
 3. Reescrita Completa em GTA3script:
    - Totalmente reescrito na sintaxe oficial e moderna GTA3script da Rockstar Games,
-     enxuto, estruturado e padronizado, respeitando os limites da engine (26 vars).
+     enxuto, estruturado e padronizado, respeitando o limite de 32 variáveis locais da engine.
 
 4. Fim do Bug do Interior ($ACTIVE_INTERIOR == 5):
    - O mod antigo verificava apenas se o ID do interior era 5, disparando em outros
@@ -63,10 +74,29 @@ O QUE HÁ DE NOVO E O QUE FOI OTIMIZADO NESTA VERSÃO:
    - O bloqueio forçado foi completamente eliminado; agora o jogador pode entrar
      e sair a qualquer instante.
 
-9. Sistema Dinâmico de Pânico e Reação a Ameaças:
-   - Se o CJ mirar com armas em alguém, disparar tiros ou ferir os ocupantes da
-     academia, os halteres são soltos com física dinâmica realista caindo no chão,
-     os ocupantes gritam em pânico e recebem tarefas de fuga inteligente (TASK_SMART_FLEE_CHAR).
+9. Reação Individual por Pedestre (Pânico, Revide e "Teleporte" pela Porta):
+   - Cada ocupante tem o SEU próprio estado de reação. Socar um deles não faz os
+     outros pararem de treinar.
+     A versão antiga usava uma única flag global ("bPanicked"): socar 1 dos 6
+     ocupantes travava a academia inteira e mandava todo mundo andar contra a
+     parede.
+   - Só existe reação com agressão de verdade:
+       * soco, cassetete, faca ou qualquer outro dano causado no pedestre;
+       * tiro por perto (somente armas de fogo, mesmo errando o alvo);
+       * granada, molotov, bomba ou qualquer explosão (o dano dispara a reação);
+       * arma apontada para ele, com arma na mão. Mira de punhos não assusta.
+   - Trombada não cancela mais o exercício: trombada não causa dano, então o
+     treino continua. Se a animação for interrompida (empurrão, queda, IA do
+     jogo), o script espera ~1,5 s e recoloca o atleta no aparelho reiniciando a
+     animação.
+   - Os halteres são soltos com física realista (DROP_OBJECT + DETACH_OBJECT) e
+     voltam para a mão quando o atleta retoma o treino.
+   - Quem entra em pânico corre até a porta por onde o jogador entrou e é APAGADO
+     ao chegar ("teleporte" para fora da academia), em vez de ficar batendo na
+     parede.
+   - Quem apanha pode revidar em vez de correr: boxeadores quase sempre (90%),
+     marombeiros às vezes (40%), corredores raramente (25%) e o cliente quase
+     nunca (20%). Quem leva tiro, explosão ou fica muito machucado foge.
 
 10. Limpeza em Caso de Morte ou Prisão:
     - Se o jogador for preso ou morrer dentro da academia, todas as entidades
