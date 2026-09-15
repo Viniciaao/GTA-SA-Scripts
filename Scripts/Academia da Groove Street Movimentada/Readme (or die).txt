@@ -73,6 +73,22 @@ WHAT IS NEW AND FIXED IN THIS VERSION:
      The old build used a single global "bPanicked" flag, so punching one of the 6
      people in the gym froze the entire room and sent everybody walking into walls.
    - Reactions only happen on REAL aggression:
+       * a punch, bat, knife or any other melee attack on the NPC
+         (detected by weapon type, HAS_CHAR_BEEN_DAMAGED_BY_WEAPON + ANYMELEE);
+       * any serious damage (gunshot, explosion, grenade, molotov, being run over);
+       * gunfire nearby (firearms only, even if the shot misses);
+       * being aimed at while the player holds a weapon. Aiming with bare fists no
+         longer scares anybody.
+     Simply walking/bumping into someone no longer counts as aggression.
+   - Bumping into an NPC no longer cancels his exercise OR takes the dumbbell out of
+     his hand: if the animation gets interrupted (push, fall, game AI) or if the game
+     itself drops the object when the athlete is shoved, the script puts him back on
+     the equipment and gives the dumbbell back to his hand (TASK_PICK_UP_OBJECT).
+   - Every occupant now has HIS OWN reaction state. Hit one of them and only that
+     one reacts -- nobody else stops training.
+     The old build used a single global "bPanicked" flag, so punching one of the 6
+     people in the gym froze the entire room and sent everybody walking into walls.
+   - Reactions only happen on REAL aggression:
        * a punch, bat, knife or any other damage dealt to the NPC;
        * gunfire nearby (firearms only, even if the shot misses);
        * grenades, molotovs, satchel charges or any explosion (through damage);

@@ -81,6 +81,23 @@ O QUE HÁ DE NOVO E O QUE FOI OTIMIZADO NESTA VERSÃO:
      ocupantes travava a academia inteira e mandava todo mundo andar contra a
      parede.
    - Só existe reação com agressão de verdade:
+       * soco, cassetete, faca ou qualquer golpe (detectado pelo tipo de arma:
+         HAS_CHAR_BEEN_DAMAGED_BY_WEAPON + ANYMELEE);
+       * dano sério de qualquer origem (tiro, explosão, granada, molotov,
+         atropelamento);
+       * tiro por perto (somente armas de fogo, mesmo errando o alvo);
+       * arma apontada para ele, com arma na mão. Mira de punhos não assusta.
+     Esbarrar/trombar não conta mais como agressão.
+   - Trombada não cancela o exercício nem tira o halter da mão: se a animação for
+     interrompida (empurrão, queda, IA do jogo) ou se o próprio jogo soltar o objeto
+     quando o atleta for empurrado, o script recoloca o atleta no aparelho e devolve
+     o halter para a mão dele (TASK_PICK_UP_OBJECT).
+   - Cada ocupante tem o SEU próprio estado de reação. Socar um deles não faz os
+     outros pararem de treinar.
+     A versão antiga usava uma única flag global ("bPanicked"): socar 1 dos 6
+     ocupantes travava a academia inteira e mandava todo mundo andar contra a
+     parede.
+   - Só existe reação com agressão de verdade:
        * soco, cassetete, faca ou qualquer outro dano causado no pedestre;
        * tiro por perto (somente armas de fogo, mesmo errando o alvo);
        * granada, molotov, bomba ou qualquer explosão (o dano dispara a reação);

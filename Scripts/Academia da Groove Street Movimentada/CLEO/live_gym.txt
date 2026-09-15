@@ -749,8 +749,11 @@ UpdateGym:
                                     GOSUB FleeToExit
                                     stJogger1 = ST_FLEE
                                 ELSE
-                                    IF NOT IS_CHAR_HEALTH_GREATER pedJogger1 99
-                                        /* foi agredido: foge ou revida */
+                                    IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedJogger1 WEAPONTYPE_ANYMELEE
+                                    OR NOT IS_CHAR_HEALTH_GREATER pedJogger1 95
+                                        /* Foi agredido de verdade (soco, arma branca,
+                                           tiro, bomba, atropelamento): foge ou revida.
+                                           Trombada nao passa por aqui. */
 
                                         IF NOT IS_CHAR_HEALTH_GREATER pedJogger1 45
                                             GOSUB FleeToExit
@@ -777,7 +780,12 @@ UpdateGym:
                                            (conserta trombadas e travamentos) */
                                         IF IS_CHAR_PLAYING_ANIM pedJogger1 "GYM_TREAD_JOG"
                                         AND LOCATE_CHAR_ANY_MEANS_3D pedJogger1 771.4 10.9204 1000.849 1.5 1.5 2.0 FALSE
-                                            stJogger1 = ST_CALM
+                                            IF stJogger1 < ST_FIXED
+                                                stJogger1 += 1
+                                            ELSE
+                                                GOSUB RestoreJogger1
+                                                stJogger1 = ST_CALM
+                                            ENDIF
                                         ELSE
                                             IF stJogger1 < ST_FIXED
                                                 stJogger1 += 1
@@ -859,8 +867,11 @@ UpdateGym:
                                     GOSUB FleeToExit
                                     stJogger2 = ST_FLEE
                                 ELSE
-                                    IF NOT IS_CHAR_HEALTH_GREATER pedJogger2 99
-                                        /* foi agredido: foge ou revida */
+                                    IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedJogger2 WEAPONTYPE_ANYMELEE
+                                    OR NOT IS_CHAR_HEALTH_GREATER pedJogger2 95
+                                        /* Foi agredido de verdade (soco, arma branca,
+                                           tiro, bomba, atropelamento): foge ou revida.
+                                           Trombada nao passa por aqui. */
 
                                         IF NOT IS_CHAR_HEALTH_GREATER pedJogger2 45
                                             GOSUB FleeToExit
@@ -887,7 +898,12 @@ UpdateGym:
                                            (conserta trombadas e travamentos) */
                                         IF IS_CHAR_PLAYING_ANIM pedJogger2 "GYM_TREAD_JOG"
                                         AND LOCATE_CHAR_ANY_MEANS_3D pedJogger2 771.4 12.3027 1000.849 1.5 1.5 2.0 FALSE
-                                            stJogger2 = ST_CALM
+                                            IF stJogger2 < ST_FIXED
+                                                stJogger2 += 1
+                                            ELSE
+                                                GOSUB RestoreJogger2
+                                                stJogger2 = ST_CALM
+                                            ENDIF
                                         ELSE
                                             IF stJogger2 < ST_FIXED
                                                 stJogger2 += 1
@@ -969,8 +985,11 @@ GOSUB DropDumbbell1
                                     GOSUB FleeToExit
                                     stLifter1 = ST_FLEE
                                 ELSE
-                                    IF NOT IS_CHAR_HEALTH_GREATER pedLifter1 99
-                                        /* foi agredido: foge ou revida */
+                                    IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedLifter1 WEAPONTYPE_ANYMELEE
+                                    OR NOT IS_CHAR_HEALTH_GREATER pedLifter1 95
+                                        /* Foi agredido de verdade (soco, arma branca,
+                                           tiro, bomba, atropelamento): foge ou revida.
+                                           Trombada nao passa por aqui. */
 GOSUB DropDumbbell1
                                         IF NOT IS_CHAR_HEALTH_GREATER pedLifter1 45
                                             GOSUB FleeToExit
@@ -997,7 +1016,22 @@ GOSUB DropDumbbell1
                                            (conserta trombadas e travamentos) */
                                         IF IS_CHAR_PLAYING_ANIM pedLifter1 "GYM_BARBELL"
                                         AND LOCATE_CHAR_ANY_MEANS_3D pedLifter1 771.4566 7.3739 1000.71 1.5 1.5 2.0 FALSE
-                                            stLifter1 = ST_CALM
+                                            IF DOES_OBJECT_EXIST objDumbbell1
+                                                IF IS_CHAR_HOLDING_OBJECT pedLifter1 objDumbbell1
+                                                    stLifter1 = ST_CALM
+                                                ELSE
+                                                    IF stLifter1 < ST_FIXED
+                                                        stLifter1 += 1
+                                                    ELSE
+                                                        GOSUB RestoreLifter1
+                                                        stLifter1 = ST_CALM
+                                                    ENDIF
+                                                ENDIF
+                                            ELSE
+                                                /* halter foi removido do mundo:
+                                                   deixa ele treinar sem peso */
+                                                stLifter1 = ST_CALM
+                                            ENDIF
                                         ELSE
                                             IF stLifter1 < ST_FIXED
                                                 stLifter1 += 1
@@ -1079,8 +1113,11 @@ GOSUB DropDumbbell2
                                     GOSUB FleeToExit
                                     stLifter2 = ST_FLEE
                                 ELSE
-                                    IF NOT IS_CHAR_HEALTH_GREATER pedLifter2 99
-                                        /* foi agredido: foge ou revida */
+                                    IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedLifter2 WEAPONTYPE_ANYMELEE
+                                    OR NOT IS_CHAR_HEALTH_GREATER pedLifter2 95
+                                        /* Foi agredido de verdade (soco, arma branca,
+                                           tiro, bomba, atropelamento): foge ou revida.
+                                           Trombada nao passa por aqui. */
 GOSUB DropDumbbell2
                                         IF NOT IS_CHAR_HEALTH_GREATER pedLifter2 45
                                             GOSUB FleeToExit
@@ -1107,7 +1144,22 @@ GOSUB DropDumbbell2
                                            (conserta trombadas e travamentos) */
                                         IF IS_CHAR_PLAYING_ANIM pedLifter2 "GYM_BARBELL"
                                         AND LOCATE_CHAR_ANY_MEANS_3D pedLifter2 773.6576 7.4052 1000.709 1.5 1.5 2.0 FALSE
-                                            stLifter2 = ST_CALM
+                                            IF DOES_OBJECT_EXIST objDumbbell2
+                                                IF IS_CHAR_HOLDING_OBJECT pedLifter2 objDumbbell2
+                                                    stLifter2 = ST_CALM
+                                                ELSE
+                                                    IF stLifter2 < ST_FIXED
+                                                        stLifter2 += 1
+                                                    ELSE
+                                                        GOSUB RestoreLifter2
+                                                        stLifter2 = ST_CALM
+                                                    ENDIF
+                                                ENDIF
+                                            ELSE
+                                                /* halter foi removido do mundo:
+                                                   deixa ele treinar sem peso */
+                                                stLifter2 = ST_CALM
+                                            ENDIF
                                         ELSE
                                             IF stLifter2 < ST_FIXED
                                                 stLifter2 += 1
@@ -1189,8 +1241,11 @@ GOSUB DropDumbbell2
                                     GOSUB FleeToExit
                                     stBoxer1 = ST_FLEE
                                 ELSE
-                                    IF NOT IS_CHAR_HEALTH_GREATER pedBoxer1 99
-                                        /* foi agredido: foge ou revida */
+                                    IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedBoxer1 WEAPONTYPE_ANYMELEE
+                                    OR NOT IS_CHAR_HEALTH_GREATER pedBoxer1 95
+                                        /* Foi agredido de verdade (soco, arma branca,
+                                           tiro, bomba, atropelamento): foge ou revida.
+                                           Trombada nao passa por aqui. */
 
                                         IF NOT IS_CHAR_HEALTH_GREATER pedBoxer1 45
                                             GOSUB FleeToExit
@@ -1217,7 +1272,12 @@ GOSUB DropDumbbell2
                                            (conserta trombadas e travamentos) */
                                         IF IS_CHAR_PLAYING_ANIM pedBoxer1 "GYM_SHADOWBOX"
                                         AND LOCATE_CHAR_ANY_MEANS_3D pedBoxer1 767.2722 -2.4724 1000.719 1.5 1.5 2.0 FALSE
-                                            stBoxer1 = ST_CALM
+                                            IF stBoxer1 < ST_FIXED
+                                                stBoxer1 += 1
+                                            ELSE
+                                                GOSUB RestoreBoxer1
+                                                stBoxer1 = ST_CALM
+                                            ENDIF
                                         ELSE
                                             IF stBoxer1 < ST_FIXED
                                                 stBoxer1 += 1
@@ -1299,8 +1359,11 @@ GOSUB DropDumbbell2
                                     GOSUB FleeToExit
                                     stBoxer2 = ST_FLEE
                                 ELSE
-                                    IF NOT IS_CHAR_HEALTH_GREATER pedBoxer2 99
-                                        /* foi agredido: foge ou revida */
+                                    IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedBoxer2 WEAPONTYPE_ANYMELEE
+                                    OR NOT IS_CHAR_HEALTH_GREATER pedBoxer2 95
+                                        /* Foi agredido de verdade (soco, arma branca,
+                                           tiro, bomba, atropelamento): foge ou revida.
+                                           Trombada nao passa por aqui. */
 
                                         IF NOT IS_CHAR_HEALTH_GREATER pedBoxer2 45
                                             GOSUB FleeToExit
@@ -1327,7 +1390,12 @@ GOSUB DropDumbbell2
                                            (conserta trombadas e travamentos) */
                                         IF IS_CHAR_PLAYING_ANIM pedBoxer2 "GYM_SHADOWBOX"
                                         AND LOCATE_CHAR_ANY_MEANS_3D pedBoxer2 769.6318 -2.4529 1000.724 1.5 1.5 2.0 FALSE
-                                            stBoxer2 = ST_CALM
+                                            IF stBoxer2 < ST_FIXED
+                                                stBoxer2 += 1
+                                            ELSE
+                                                GOSUB RestoreBoxer2
+                                                stBoxer2 = ST_CALM
+                                            ENDIF
                                         ELSE
                                             IF stBoxer2 < ST_FIXED
                                                 stBoxer2 += 1
@@ -1409,8 +1477,11 @@ GOSUB DropDumbbell2
                                     GOSUB FleeToExit
                                     stShopper = ST_FLEE
                                 ELSE
-                                    IF NOT IS_CHAR_HEALTH_GREATER pedShopper 99
-                                        /* foi agredido: foge ou revida */
+                                    IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedShopper WEAPONTYPE_ANYMELEE
+                                    OR NOT IS_CHAR_HEALTH_GREATER pedShopper 95
+                                        /* Foi agredido de verdade (soco, arma branca,
+                                           tiro, bomba, atropelamento): foge ou revida.
+                                           Trombada nao passa por aqui. */
 
                                         IF NOT IS_CHAR_HEALTH_GREATER pedShopper 45
                                             GOSUB FleeToExit
@@ -1437,7 +1508,12 @@ GOSUB DropDumbbell2
                                            (conserta trombadas e travamentos) */
                                         IF IS_CHAR_PLAYING_ANIM pedShopper "COPBROWSE_NOD"
                                         AND LOCATE_CHAR_ANY_MEANS_3D pedShopper 756.2289 8.8118 1000.7 1.5 1.5 2.0 FALSE
-                                            stShopper = ST_CALM
+                                            IF stShopper < ST_FIXED
+                                                stShopper += 1
+                                            ELSE
+                                                GOSUB RestoreShopper
+                                                stShopper = ST_CALM
+                                            ENDIF
                                         ELSE
                                             IF stShopper < ST_FIXED
                                                 stShopper += 1
@@ -1473,8 +1549,10 @@ UpdateOutside:
             RETURN
         ENDIF
 
-        /* Foi agredido (soco, tiro, bomba, carro)? Entao foge e o mod solta ele */
-        IF NOT IS_CHAR_HEALTH_GREATER pedSmoker 99
+        /* Foi agredido de verdade (soco, arma branca, tiro, bomba, carro)?
+           Entao foge e o mod solta ele. Trombada nao conta. */
+        IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedSmoker WEAPONTYPE_ANYMELEE
+        OR NOT IS_CHAR_HEALTH_GREATER pedSmoker 95
             GOSUB ReleaseSmoker
             RETURN
         ENDIF
@@ -1696,7 +1774,13 @@ RestoreLifter1:
     SET_CHAR_HEADING pedLifter1 0.0
     SET_CHAR_STAY_IN_SAME_PLACE pedLifter1 TRUE
     IF DOES_OBJECT_EXIST objDumbbell1
-        IF NOT IS_OBJECT_ATTACHED objDumbbell1
+        IF NOT IS_CHAR_HOLDING_OBJECT pedLifter1 objDumbbell1
+            /* O halter caiu no chao (empurrao, queda, reacao): devolve ele
+               para a mao. Primeiro volta a ser um objeto parado, na altura
+               do banco, e so depois o atleta pega de novo. */
+            SET_OBJECT_DYNAMIC objDumbbell1 FALSE
+            SET_OBJECT_COORDINATES objDumbbell1 771.4566 7.3739 1000.76
+            SET_OBJECT_HEADING objDumbbell1 90.0
             TASK_PICK_UP_OBJECT pedLifter1 objDumbbell1 0.04 0.0 -0.02 PED_HANDR HOLD_ORIENTATE_BONE_FULL "NULL" "NULL" -1
         ENDIF
     ENDIF
@@ -1708,7 +1792,13 @@ RestoreLifter2:
     SET_CHAR_HEADING pedLifter2 0.0
     SET_CHAR_STAY_IN_SAME_PLACE pedLifter2 TRUE
     IF DOES_OBJECT_EXIST objDumbbell2
-        IF NOT IS_OBJECT_ATTACHED objDumbbell2
+        IF NOT IS_CHAR_HOLDING_OBJECT pedLifter2 objDumbbell2
+            /* O halter caiu no chao (empurrao, queda, reacao): devolve ele
+               para a mao. Primeiro volta a ser um objeto parado, na altura
+               do banco, e so depois o atleta pega de novo. */
+            SET_OBJECT_DYNAMIC objDumbbell2 FALSE
+            SET_OBJECT_COORDINATES objDumbbell2 773.6576 7.4052 1000.76
+            SET_OBJECT_HEADING objDumbbell2 90.0
             TASK_PICK_UP_OBJECT pedLifter2 objDumbbell2 0.04 0.0 -0.02 PED_HANDR HOLD_ORIENTATE_BONE_FULL "NULL" "NULL" -1
         ENDIF
     ENDIF
