@@ -29,8 +29,8 @@ O QUE MUDOU
 - Dois tipos de luz, configuraveis: facho de searchlight (igual ao original)
   e/ou brilho (corona com cor e tamanho proprios). O brilho nao gasta vaga
   de searchlight, entao ilumina muito mais NPCs ao mesmo tempo.
-- O INI e relido sozinho a cada ~10 segundos: da para testar mudancas sem
-  reiniciar o jogo.
+- O INI e lido uma unica vez, na entrada do script (carregar um save). Depois
+  de editar, recarregue o save para aplicar.
 
 CONFIGURACAO (CLEO\Jesus Enfermeiro.ini)
 ----------------------------------------

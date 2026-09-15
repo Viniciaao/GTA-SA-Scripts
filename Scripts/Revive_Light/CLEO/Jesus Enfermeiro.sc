@@ -10,7 +10,8 @@
     O QUE O MOD FAZ
     ----------------------------------------------------------------------------
     Acende uma luz em cima de cada pedestre cujo MODELO esteja listado em
-    CLEO\Jesus Enfermeiro.ini. A lista usa NOME de modelo (nunca ID), entao
+    CLEO\Jesus Enfermeiro.ini (lido uma vez, ao entrar no jogo). A lista usa
+    NOME de modelo (nunca ID), entao
     funciona tambem com peds adicionados que nao substituem nenhum original:
     basta o nome do modelo existir no jogo (.ide ou ModLoader).
 
@@ -44,9 +45,7 @@
         original) e/ou brilho (corona com cor/size configuravel). O brilho
         nao gasta vaga de searchlight, entao serve para iluminar muito mais
         NPCs ao mesmo tempo.
-    8.  O INI e relido sozinho a cada ~10 segundos: da para testar mudancas
-        sem reiniciar o jogo.
-    9.  "OnlyWhenReviving = 1" reproduz o comportamento original (luz somente
+    8.  "OnlyWhenReviving = 1" reproduz o comportamento original (luz somente
         enquanto o ped faz a animacao de reanimacao/CPR).
 
     ----------------------------------------------------------------------------
@@ -84,7 +83,6 @@ CONST_INT   JE_ENTRY_Z            16      //      +16 = origem Z   movimento)
 CONST_INT   JE_ENTRY_HAS          20      //      +20 = 1 se a searchlight existe
 CONST_INT   JE_LINE_SIZE          256     // tamanho maximo de uma linha do INI
 CONST_INT   JE_SCAN_EVERY         6       // varredura de peds a cada N quadros
-CONST_INT   JE_RELOAD_EVERY       600     // recarrega o INI a cada N quadros
 CONST_INT   JE_DEF_MAXLIGHTS      7       // o array do jogo tem 8 searchlights
 CONST_INT   JE_LIGHT_COUNT_ADDR   0xA90830 // CTheScripts::NumberOfScriptSearchLights
 
@@ -124,7 +122,6 @@ SCRIPT_START
     LVAR_INT   colG
     LVAR_INT   colB
     LVAR_INT   hFile                   // arquivo do INI
-    LVAR_INT   firstRun                // 1 = ainda nao avisou o jogador
 
     LVAR_FLOAT height                  // altura do foco acima do ped
     LVAR_FLOAT rad1
@@ -178,7 +175,7 @@ SCRIPT_START
         i += 1
     ENDWHILE
 
-    firstRun = 1
+    // o INI e lido uma vez, aqui na entrada do script
     GOSUB LoadIni
 
     // -----------------------------------------------------------------------
@@ -189,10 +186,6 @@ main_loop:
 
     IF NOT IS_PLAYER_PLAYING 0
         GOTO main_loop
-    ENDIF
-
-    IF FRAME_MOD JE_RELOAD_EVERY
-        GOSUB LoadIni
     ENDIF
 
     IF FRAME_MOD JE_SCAN_EVERY
@@ -226,11 +219,7 @@ LoadIni:
 
     IF NOT DOES_FILE_EXIST "CLEO\Jesus Enfermeiro.ini"
         GOSUB DefaultModels
-        GOSUB ValidateEntries
-        IF firstRun = 1
-            PRINT_STRING_NOW "~y~Jesus Enfermeiro:~w~ crie o CLEO\Jesus Enfermeiro.ini (por enquanto so os medicos originais)." 9000
-        ENDIF
-        firstRun = 0
+        PRINT_STRING_NOW "~y~Jesus Enfermeiro:~w~ crie o CLEO\Jesus Enfermeiro.ini (por enquanto so os medicos originais)." 9000
         RETURN
     ENDIF
 
@@ -252,9 +241,6 @@ LoadIni:
     IF nModels = 0
         GOSUB DefaultModels
     ENDIF
-
-    GOSUB ValidateEntries
-    firstRun = 0
     RETURN
 
     // -----------------------------------------------------------------------
@@ -456,9 +442,7 @@ AddModel:
         WRITE_MEMORY entry 4 model 0
         nModels += 1
     ELSE
-        IF firstRun = 1
-            PRINT_FORMATTED_NOW "~y~Jesus Enfermeiro:~w~ modelo desconhecido no INI: %s" (line)
-        ENDIF
+        PRINT_FORMATTED_NOW "~y~Jesus Enfermeiro:~w~ modelo desconhecido no INI: %s" (line)
     ENDIF
     RETURN
 
@@ -490,25 +474,6 @@ DefaultModels:
         WRITE_MEMORY entry 4 model 0
         nModels += 1
     ENDIF
-    RETURN
-
-    // -----------------------------------------------------------------------
-    // ValidateEntries - solta quem deixou de usar um modelo da lista
-    // -----------------------------------------------------------------------
-ValidateEntries:
-    i = 0
-    WHILE i < JE_MAX_CHARS
-        GOSUB GetEntry
-        READ_MEMORY entry 4 0 (ch)
-        IF ch > 0
-            GET_CHAR_MODEL ch (model)
-            GOSUB ModelInList
-            IF ptr = 0
-                GOSUB DropEntry
-            ENDIF
-        ENDIF
-        i += 1
-    ENDWHILE
     RETURN
 
     // -----------------------------------------------------------------------
@@ -582,7 +547,10 @@ UpdateEntry:
         RETURN
     ENDIF
 
-    // morreu, ou foi deletado (streaming): a luz vai embora
+    // morreu, ou foi deletado (streaming): a luz vai embora.
+    // O handle de ped carrega a versao da vaga da pool (index << 8 | versao),
+    // entao vaga reaproveitada por outro ped nao "herda" a luz: o handle
+    // antigo deixa de existir e a vaga e liberada aqui mesmo.
     IF NOT DOES_CHAR_EXIST ch
         GOSUB DropEntry
         RETURN
