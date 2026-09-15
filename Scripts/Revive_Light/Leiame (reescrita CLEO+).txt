@@ -1,0 +1,81 @@
+JESUS ENFERMEIRO - reescrita em gta3script (CLEO 4.4.4 + CLEO+)
+================================================================
+Mod original: Junior_Djjr (MixMods).
+Codigo antigo (decompilado): "CLEO/Jesus Enfermeiro (Junior_Djjr).txt".
+
+INSTALACAO
+----------
+1. Tenha o CLEO 4.4.4 (ou superior) e o CLEO+ 1.2.0+ (cleo.li) instalados.
+2. Copie para a pasta CLEO do GTA San Andreas:
+       Jesus Enfermeiro.cs      (script compilado - e o que o jogo usa)
+       Jesus Enfermeiro.ini     (configuracao + lista de peds)
+   Usando ModLoader: jogue os dois arquivos na pasta do mod.
+3. "Jesus Enfermeiro.sc" e o codigo-fonte (gta3script). Nao precisa compilar
+   nada para jogar.
+
+O QUE MUDOU
+-----------
+- Os peds vem do INI por NOME de modelo, nunca por ID: funciona tambem com
+  peds adicionados que nao substituem nenhum original (ModLoader / .ide).
+  O script antigo so conhecia 3 IDs fixos (LAEMT1, SFEMT1, LVEMT1).
+- Varios NPCs iluminados ao mesmo tempo (o antigo iluminava um por vez).
+- A luz apaga na hora em que o NPC morre - e tambem quando o ped e deletado
+  ou sai da pool (streaming). O antigo nao checava nada disso.
+- Nada de varrer a heap na mao (0xB74490 + byte map) em todo quadro: a
+  enumeracao usa a pool oficial de pedes do CLEO+ e a comparacao e feita
+  pelo ID resolvido a partir do NOME (CLEO+ GET_MODEL_BY_NAME).
+- Protecao contra o bug do jogo que escreve fora do array de searchlights
+  quando acaba a vaga (veja "MaxLights" no INI).
+- Dois tipos de luz, configuraveis: facho de searchlight (igual ao original)
+  e/ou brilho (corona com cor e tamanho proprios). O brilho nao gasta vaga
+  de searchlight, entao ilumina muito mais NPCs ao mesmo tempo.
+- O INI e lido uma unico vez, na entrada do script (carregar um save). Depois
+  de editar, recarregue o save para aplicar.
+- A luz fica parada em cima do NPC (como no mod original) e e refeita quando
+  ele anda mais de ~1.5 m: o jogo nao tem opcode para mover a origem de uma
+  searchlight, e a que existe (06B5, mirado) nao foi usada porque o mod
+  original tambem nao usava.
+
+CONFIGURACAO (CLEO\Jesus Enfermeiro.ini)
+----------------------------------------
+O arquivo ja vem comentado. Resumo:
+
+  Type = 0               0 = facho, 1 = brilho, 2 = os dois
+  Height = 30.0          altura da luz acima do NPC (original: 30.0)
+  Radius1 / Radius2      raios do cone (padrao do mod original: 0.0 e 2.5)
+  GlowSize = 0.9         tamanho do brilho
+  Color = 255 240 180    cor do brilho (R G B)
+  OnlyWhenReviving = 0   1 = so acende durante a animacao de reanimacao (CPR),
+                         que era o comportamento do mod original
+  MaxLights = 7          quantas searchlights o jogo aguenta
+                         (7 no jogo original; 120 com limit adjuster)
+
+  [Models]               um NOME de modelo por linha, ex.:
+                         LAEMT1
+                         SFEMT1
+                         LVEMT1
+                         NURSE1
+                         MEU_PED_ADICIONADO
+
+REQUISITOS
+----------
+- CLEO 4.4.4 ou superior
+- CLEO+ 1.2.0 ou superior (cleo.li) - usado para resolver nome->modelo e para
+  percorrer a pool de pedestres. Sem o CLEO+ o script avisa na tela e se
+  desliga em vez de dar erro.
+
+
+SE O JOGO CRASHAR
+-----------------
+O script faz o minimo possivel do lado do jogo (nada de heap walk, nada de
+patch de memoria, uma searchlight por NPC e nada mais). Mesmo assim, para
+isolar um crash:
+
+1. No INI, coloque Type = 1: o mod passa a acender so o brilho (corona) e nao
+   encosta em searchlight nenhuma. Se o crash parar, o problema esta no array
+   de searchlights do jogo (8 vagas, compartilhado com missoes e outros mods).
+2. Tire o "Jesus Enfermeiro.cs" da pasta CLEO e veja se o crash continua: isso
+   separa "crash do mod" de "crash do jogo/outros mods".
+3. O SCRLog.log guarda, no INICIO do arquivo, o endereco da excecao do crash -
+   e o que aponta o culpado. O dump do fim do arquivo mostra o ultimo comando
+   processado de cada script (util para ver se algum script ficou "no meio").
