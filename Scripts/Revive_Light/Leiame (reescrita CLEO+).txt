@@ -29,8 +29,12 @@ O QUE MUDOU
 - Dois tipos de luz, configuraveis: facho de searchlight (igual ao original)
   e/ou brilho (corona com cor e tamanho proprios). O brilho nao gasta vaga
   de searchlight, entao ilumina muito mais NPCs ao mesmo tempo.
-- O INI e lido uma unica vez, na entrada do script (carregar um save). Depois
+- O INI e lido uma unico vez, na entrada do script (carregar um save). Depois
   de editar, recarregue o save para aplicar.
+- A luz fica parada em cima do NPC (como no mod original) e e refeita quando
+  ele anda mais de ~1.5 m: o jogo nao tem opcode para mover a origem de uma
+  searchlight, e a que existe (06B5, mirado) nao foi usada porque o mod
+  original tambem nao usava.
 
 CONFIGURACAO (CLEO\Jesus Enfermeiro.ini)
 ----------------------------------------
@@ -59,3 +63,19 @@ REQUISITOS
 - CLEO+ 1.2.0 ou superior (cleo.li) - usado para resolver nome->modelo e para
   percorrer a pool de pedestres. Sem o CLEO+ o script avisa na tela e se
   desliga em vez de dar erro.
+
+
+SE O JOGO CRASHAR
+-----------------
+O script faz o minimo possivel do lado do jogo (nada de heap walk, nada de
+patch de memoria, uma searchlight por NPC e nada mais). Mesmo assim, para
+isolar um crash:
+
+1. No INI, coloque Type = 1: o mod passa a acender so o brilho (corona) e nao
+   encosta em searchlight nenhuma. Se o crash parar, o problema esta no array
+   de searchlights do jogo (8 vagas, compartilhado com missoes e outros mods).
+2. Tire o "Jesus Enfermeiro.cs" da pasta CLEO e veja se o crash continua: isso
+   separa "crash do mod" de "crash do jogo/outros mods".
+3. O SCRLog.log guarda, no INICIO do arquivo, o endereco da excecao do crash -
+   e o que aponta o culpado. O dump do fim do arquivo mostra o ultimo comando
+   processado de cada script (util para ver se algum script ficou "no meio").

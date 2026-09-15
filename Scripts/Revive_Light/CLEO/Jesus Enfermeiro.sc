@@ -36,17 +36,19 @@
         quando acaba a vaga (CTheScripts::AddScriptSearchLight): o script le
         NumberOfScriptSearchLights antes de criar luz e respeita o "MaxLights"
         configurado no INI (7 no jogo original, 120 com limit adjuster).
-    6.  A mira da searchlight e re-apontada para o NPC a cada quadro (1
-        opcode), e a luz so e desmontada/refeita quando o NPC se afasta mais
-        de ~5 m - o jogo nao tem opcode para mover a ORIGEM da searchlight.
-        Como o jogo nao usa fade na searchlight, refazer a luz no mesmo
-        quadro nao pisca. Pedestre parado (CPR) nao custa nada.
+    6.  A searchlight fica estatica em cima do NPC (como no mod original) e e
+        refeita quando ele se afasta mais de ~1.5 m: o jogo nao tem opcode
+        para mover a ORIGEM dela. Como a searchlight nao tem fade, refazer a
+        luz no mesmo quadro nao pisca. Pedestre parado (CPR) nao custa nada.
     7.  Dois tipos de luz, escolhidos no INI: facho de searchlight (como no
         original) e/ou brilho (corona com cor/size configuravel). O brilho
         nao gasta vaga de searchlight, entao serve para iluminar muito mais
         NPCs ao mesmo tempo.
     8.  "OnlyWhenReviving = 1" reproduz o comportamento original (luz somente
         enquanto o ped faz a animacao de reanimacao/CPR).
+    9.  "Type = 1" acende so o brilho (corona) e NAO usa searchlight nenhuma:
+        serve tambem para testar se algum outro mod esta estourando o array de
+        searchlights do jogo (que tem apenas 8 vagas).
 
     ----------------------------------------------------------------------------
     REQUISITOS
@@ -81,13 +83,13 @@ CONST_INT   JE_ENTRY_X            8       //       +8 = origem X  (para o
 CONST_INT   JE_ENTRY_Y            12      //      +12 = origem Y   teste de
 CONST_INT   JE_ENTRY_Z            16      //      +16 = origem Z   movimento)
 CONST_INT   JE_ENTRY_HAS          20      //      +20 = 1 se a searchlight existe
-CONST_INT   JE_LINE_SIZE          256     // tamanho maximo de uma linha do INI
+CONST_INT   JE_LINE_SIZE          256     // tamanho da area de linha no bloco
+CONST_INT   JE_READ_SIZE          240     // bytes lidos por linha (margem de 16)
 CONST_INT   JE_SCAN_EVERY         6       // varredura de peds a cada N quadros
 CONST_INT   JE_DEF_MAXLIGHTS      7       // o array do jogo tem 8 searchlights
 CONST_INT   JE_LIGHT_COUNT_ADDR   0xA90830 // CTheScripts::NumberOfScriptSearchLights
 
-CONST_FLOAT JE_FOLLOW_DIST_SQ     25.0    // 5 m ao quadrado
-CONST_FLOAT JE_AIM_SPEED          5.0     // velocidade do ajuste da mira
+CONST_FLOAT JE_FOLLOW_DIST_SQ     2.25    // 1.5 m ao quadrado
 CONST_FLOAT JE_DEF_HEIGHT         30.0    // altura padrao do foco
 CONST_FLOAT JE_DEF_RADIUS1        0.0     // 1o raio do opcode 06B1
 CONST_FLOAT JE_DEF_RADIUS2        2.5     // 2o raio do opcode 06B1
@@ -135,16 +137,25 @@ SCRIPT_START
     LVAR_FLOAT dist
 
     // -----------------------------------------------------------------------
-    // Dicas de tipo para o compilador
+    // Tipos das variaveis de entidade
     // -----------------------------------------------------------------------
-    // O gta3script exige que variavel de entidade nasça de um comando que a
-    // devolva. As duas linhas abaixo somente anotam os tipos de `ch` (CHAR) e
-    // de `lh` (SEARCHLIGHT) e nunca sao executadas: `base` e um endereco de
-    // memoria valido e jamais fica negativo.
+    // O gta3script exige que uma variavel de entidade nasca de um comando que
+    // a devolva: e isso que o bloco abaixo faz com `ch` (CHAR) e `lh`
+    // (SEARCHLIGHT). Ele NUNCA roda (o CLEO zera as variaveis locais de um
+    // script customizado, entao `base` valendo 0 nao e < 0) e, mesmo se
+    // rodasse, nao estraga nada: a luz e criada e apagada na mesma hora.
     // -----------------------------------------------------------------------
     IF base < 0
         GET_PLAYER_CHAR 0 (ch)
-        CREATE_SEARCHLIGHT 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 (lh)
+        READ_MEMORY JE_LIGHT_COUNT_ADDR 2 0 (tmp)
+        IF tmp < JE_DEF_MAXLIGHTS
+            CREATE_SEARCHLIGHT 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 (lh)
+            IF lh > -1
+                IF DOES_SEARCHLIGHT_EXIST lh
+                    DELETE_SEARCHLIGHT lh
+                ENDIF
+            ENDIF
+        ENDIF
     ENDIF
 
     // -----------------------------------------------------------------------
@@ -224,12 +235,16 @@ LoadIni:
     ENDIF
 
     IF OPEN_FILE "CLEO\Jesus Enfermeiro.ini" "r" (hFile)
-        line = base
-        line += JE_OFF_LINE
         section = 0
         tmp = 1
         WHILE tmp = 1
-            IF READ_STRING_FROM_FILE hFile line JE_LINE_SIZE
+            // O ponteiro do buffer PRECISA ser refeito a cada linha: o parser
+            // avanca `line` (limpeza de espacos, [secao], BOM) e, sem isso, a
+            // leitura seguinte escreveria cada vez mais longe, fora do bloco
+            // de memoria do script (isso corrompe o heap do jogo).
+            line = base
+            line += JE_OFF_LINE
+            IF READ_STRING_FROM_FILE hFile line JE_READ_SIZE
                 GOSUB ParseLine
             ELSE
                 tmp = 0
@@ -609,11 +624,9 @@ UpdateLight:
         RETURN
     ENDIF
 
-    // a searchlight fica no ceu e a mira e re-apontada para o NPC (1 opcode)
-    POINT_SEARCHLIGHT_AT_COORD lh px py pz JE_AIM_SPEED
-
-    // o jogo nao tem opcode para mover a ORIGEM da searchlight: quando o NPC
-    // se afasta muito, a luz e refeita em cima dele
+    // A searchlight e estatica (como no mod original): o jogo nao tem opcode
+    // para mover a origem dela. Quando o NPC se afasta, a luz e refeita no
+    // lugar certo - e dai a mira volta a apontar para o pe do NPC.
     sz = pz
     sz += height
     dist = 0.0
@@ -647,6 +660,11 @@ CreateLight:
     // O handler de 06B1 escreve FORA do array quando nao ha vaga, entao nunca
     // crie uma luz sem confirmar que ainda tem espaco (MaxLights no INI).
     READ_MEMORY JE_LIGHT_COUNT_ADDR 2 0 (tmp)
+    IF tmp < 0
+        // leitura absurda do contador (EXE diferente / limit adjuster): nao
+        // arrisca criar luz as cegas
+        RETURN
+    ENDIF
     IF tmp >= maxLights
         RETURN
     ENDIF
@@ -654,6 +672,11 @@ CreateLight:
     sz = pz
     sz += height
     CREATE_SEARCHLIGHT px py sz px py pz rad1 rad2 (lh)
+    IF lh < 0
+        // sem vaga no array do jogo: nunca guarde um handle invalido, os
+        // opcodes 0x6B2/0x6B3/0x6B5 usam o indice dele de verdade
+        RETURN
+    ENDIF
 
     // guarda o handle, de onde a luz nasceu e a marca de "temos luz"
     ptr = entry
