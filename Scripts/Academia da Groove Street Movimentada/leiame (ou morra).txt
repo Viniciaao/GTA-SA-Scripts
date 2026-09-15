@@ -26,6 +26,11 @@ O QUE HÁ DE NOVO E O QUE FOI OTIMIZADO NESTA VERSÃO:
    - Há salvaguarda para nunca deixar a academia 100% deserta.
    - Carregamento sob demanda: modelos e animações só são carregados na memória
      caso o atleta correspondente tenha sido sorteado para aparecer.
+   - Spawn antecipado (fim do "aparecer do nada"): a academia é montada enquanto
+     você ainda está chegando pela rua (dentro de ~30 m da porta), não depois de
+     você já estar lá dentro. Assim os atletas já estão no meio do treino quando
+     você entra, em vez de surgirem na sua frente. Ao se afastar, tudo é limpo
+     como antes, e ao voltar o sorteio traz gente nova.
 
 2. O Fumante da Calçada Agora Aparece de Verdade + Clima / Chuva:
    - CAUSA RAIZ CORRIGIDA: a rotina antiga só era chamada dentro de um bloco

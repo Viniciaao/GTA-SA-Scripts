@@ -25,6 +25,11 @@ WHAT IS NEW AND FIXED IN THIS VERSION:
    - Failsafe ensures the gym is never completely empty.
    - Dynamic asset loading: models and animations are only loaded into memory
      if the corresponding athlete was rolled to appear.
+   - Pre-spawn (no more pop-in): the gym is built while you are still walking up
+     to the door (within ~30 m of the entrance), not after you are already inside.
+     The athletes are therefore already mid-workout when you walk in, instead of
+     appearing out of thin air in front of you. Walking away cleans everything up
+     as before, and walking back in re-rolls a new crowd.
 
 2. Exterior Pedestrian (the Smoker) Now Actually Shows Up + Weather Response:
    - FIXED ROOT CAUSE: the old routine was only called from inside an

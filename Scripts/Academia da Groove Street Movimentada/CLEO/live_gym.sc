@@ -184,8 +184,19 @@ main_loop:
     GET_AREA_VISIBLE curPed
     IF curPed = 5
     AND LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
-        /* O banco do supino e criado junto com todo mundo: se ele existe,
-           a academia ja esta montada */
+        /* Guarda onde o jogador entrou: e para la que os pedestres correm
+           quando entram em panico */
+        IF doorX = 0.0
+            GET_CHAR_COORDINATES scplayer doorX doorY fTmpZ
+        ENDIF
+    ENDIF
+
+    /* Zona da academia: dentro dela OU chegando pela rua. A academia e montada
+       ANTES de o jogador entrar, para ninguem aparecer do nada na frente dele.
+       O banco do supino e criado junto com todo mundo: se ele existe, a
+       academia ja esta montada. */
+    GOSUB PlayerInGymZone
+    IF curPed = 1
         IF DOES_OBJECT_EXIST objBench1
             GOSUB UpdateGym
         ELSE
@@ -196,6 +207,23 @@ main_loop:
     ENDIF
 
     GOTO main_loop
+
+/* ========================================================================= */
+/* ZONA DA ACADEMIA                                                          */
+/* ------------------------------------------------------------------------- */
+/* curPed = 1 quando o jogador esta DENTRO da academia ou chegando pela rua    */
+/* perto da porta. Enquanto ele estiver por perto a academia fica montada,     */
+/* entao os atletas ja estao treinando quando ele entra.                       */
+/* ========================================================================= */
+PlayerInGymZone:
+    curPed = 0
+    IF LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+        curPed = 1
+    ENDIF
+    IF LOCATE_CHAR_ANY_MEANS_3D scplayer 2228.751 -1720.5699 13.5531 30.0 30.0 25.0 FALSE
+        curPed = 1
+    ENDIF
+    RETURN
 
 /* ========================================================================= */
 /* SPAWN DOS OCUPANTES E EQUIPAMENTOS DA ACADEMIA                            */
@@ -218,12 +246,6 @@ SpawnGym:
     stShopper = ST_CALM
     objDumbbell1 = 0
     objDumbbell2 = 0
-    /* A porta de saida e exatamente onde o jogador entrou na academia.
-       Guarda so na primeira vez: depois a porta nao muda de lugar. */
-    IF doorX = 0.0
-        GET_CHAR_COORDINATES scplayer doorX doorY fTmpZ
-    ENDIF
-
     /* Sorteio individual de cada frequentador */
     GENERATE_RANDOM_INT_IN_RANGE 0 100 curPed
     IF curPed < 65
@@ -321,7 +343,10 @@ SpawnGym:
         IF NOT IS_PLAYER_PLAYING 0
             RETURN
         ENDIF
-        IF NOT LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+        /* Se o jogador saiu da academia e se afastou, desiste da montagem:
+           a limpeza roda no proximo ciclo e deixa tudo consistente. */
+        GOSUB PlayerInGymZone
+        IF curPed = 0
             RETURN
         ENDIF
     ENDWHILE
@@ -334,7 +359,10 @@ SpawnGym:
             IF NOT IS_PLAYER_PLAYING 0
                 RETURN
             ENDIF
-            IF NOT LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+            /* Se o jogador saiu da academia e se afastou, desiste da montagem:
+               a limpeza roda no proximo ciclo e deixa tudo consistente. */
+            GOSUB PlayerInGymZone
+            IF curPed = 0
                 RETURN
             ENDIF
         ENDWHILE
@@ -349,7 +377,10 @@ SpawnGym:
             IF NOT IS_PLAYER_PLAYING 0
                 RETURN
             ENDIF
-            IF NOT LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+            /* Se o jogador saiu da academia e se afastou, desiste da montagem:
+               a limpeza roda no proximo ciclo e deixa tudo consistente. */
+            GOSUB PlayerInGymZone
+            IF curPed = 0
                 RETURN
             ENDIF
         ENDWHILE
@@ -362,7 +393,10 @@ SpawnGym:
             IF NOT IS_PLAYER_PLAYING 0
                 RETURN
             ENDIF
-            IF NOT LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+            /* Se o jogador saiu da academia e se afastou, desiste da montagem:
+               a limpeza roda no proximo ciclo e deixa tudo consistente. */
+            GOSUB PlayerInGymZone
+            IF curPed = 0
                 RETURN
             ENDIF
         ENDWHILE
@@ -374,7 +408,10 @@ SpawnGym:
             IF NOT IS_PLAYER_PLAYING 0
                 RETURN
             ENDIF
-            IF NOT LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+            /* Se o jogador saiu da academia e se afastou, desiste da montagem:
+               a limpeza roda no proximo ciclo e deixa tudo consistente. */
+            GOSUB PlayerInGymZone
+            IF curPed = 0
                 RETURN
             ENDIF
         ENDWHILE
@@ -386,7 +423,10 @@ SpawnGym:
             IF NOT IS_PLAYER_PLAYING 0
                 RETURN
             ENDIF
-            IF NOT LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+            /* Se o jogador saiu da academia e se afastou, desiste da montagem:
+               a limpeza roda no proximo ciclo e deixa tudo consistente. */
+            GOSUB PlayerInGymZone
+            IF curPed = 0
                 RETURN
             ENDIF
         ENDWHILE
@@ -398,7 +438,10 @@ SpawnGym:
             IF NOT IS_PLAYER_PLAYING 0
                 RETURN
             ENDIF
-            IF NOT LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+            /* Se o jogador saiu da academia e se afastou, desiste da montagem:
+               a limpeza roda no proximo ciclo e deixa tudo consistente. */
+            GOSUB PlayerInGymZone
+            IF curPed = 0
                 RETURN
             ENDIF
         ENDWHILE
@@ -410,7 +453,10 @@ SpawnGym:
             IF NOT IS_PLAYER_PLAYING 0
                 RETURN
             ENDIF
-            IF NOT LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+            /* Se o jogador saiu da academia e se afastou, desiste da montagem:
+               a limpeza roda no proximo ciclo e deixa tudo consistente. */
+            GOSUB PlayerInGymZone
+            IF curPed = 0
                 RETURN
             ENDIF
         ENDWHILE
@@ -422,7 +468,10 @@ SpawnGym:
             IF NOT IS_PLAYER_PLAYING 0
                 RETURN
             ENDIF
-            IF NOT LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+            /* Se o jogador saiu da academia e se afastou, desiste da montagem:
+               a limpeza roda no proximo ciclo e deixa tudo consistente. */
+            GOSUB PlayerInGymZone
+            IF curPed = 0
                 RETURN
             ENDIF
         ENDWHILE
@@ -434,7 +483,10 @@ SpawnGym:
             IF NOT IS_PLAYER_PLAYING 0
                 RETURN
             ENDIF
-            IF NOT LOCATE_CHAR_ANY_MEANS_3D scplayer 765.0 5.0 1000.0 35.0 35.0 20.0 FALSE
+            /* Se o jogador saiu da academia e se afastou, desiste da montagem:
+               a limpeza roda no proximo ciclo e deixa tudo consistente. */
+            GOSUB PlayerInGymZone
+            IF curPed = 0
                 RETURN
             ENDIF
         ENDWHILE
@@ -1736,7 +1788,13 @@ FleeToExit:
     SET_CHAR_STAY_IN_SAME_PLACE curPed FALSE
     CLEAR_CHAR_TASKS curPed
     TASK_SAY curPed CONTEXT_GLOBAL_GUN_RUN
-    TASK_GO_STRAIGHT_TO_COORD curPed doorX doorY 1000.7 PEDMOVE_RUN 60000
+    IF doorX = 0.0
+        /* O jogador ainda nao entrou na academia, entao a porta ainda nao e
+           conhecida: foge dele e sera apagado quando ele se afastar */
+        TASK_SMART_FLEE_CHAR curPed scplayer 70.0 20000
+    ELSE
+        TASK_GO_STRAIGHT_TO_COORD curPed doorX doorY 1000.7 PEDMOVE_RUN 60000
+    ENDIF
     RETURN
 
 /* Revida o jogador (briga de mao limpa) */
@@ -1749,6 +1807,15 @@ FightPlayer:
 
 /* Chegou na porta? Sai da academia (apagado) */
 FleeTick:
+    IF doorX = 0.0
+        /* Sem porta conhecida: some quando o jogador se afastar. Se ele entrar
+           na academia a porta passa a ser conhecida e o pedestre corre para la
+           no proximo ciclo. */
+        IF NOT LOCATE_CHAR_ANY_MEANS_CHAR_3D curPed scplayer 25.0 25.0 12.0 FALSE
+            DELETE_CHAR curPed
+        ENDIF
+        RETURN
+    ENDIF
     IF LOCATE_CHAR_ANY_MEANS_3D curPed doorX doorY 1000.7 3.0 3.0 3.5 FALSE
         DELETE_CHAR curPed
         RETURN
@@ -2014,6 +2081,10 @@ CleanupGym:
     IF HAS_ANIMATION_LOADED "COP_AMBIENT"
         REMOVE_ANIMATION "COP_AMBIENT"
     ENDIF
+
+    /* Esquece a porta: na proxima visita o jogador grava a entrada de novo */
+    doorX = 0.0
+    doorY = 0.0
 
     RETURN
 
