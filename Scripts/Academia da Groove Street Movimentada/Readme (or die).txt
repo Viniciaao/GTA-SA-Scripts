@@ -78,7 +78,11 @@ WHAT IS NEW AND FIXED IN THIS VERSION:
        * any serious damage (gunshot, explosion, grenade, molotov, being run over);
        * gunfire nearby (firearms only, even if the shot misses);
        * being aimed at while the player holds a weapon. Aiming with bare fists no
-         longer scares anybody.
+         longer scares anybody;
+       * an explosion inside the gym -- grenade, satchel charge, molotov, rocket,
+         barrel or car -- or the player arming/throwing/detonating a bomb. In that
+         case the whole gym reacts: some run for the door, some start a fight
+         (individual random roll for each NPC).
      Simply walking/bumping into someone no longer counts as aggression.
    - Bumping into an NPC no longer cancels his exercise OR takes the dumbbell out of
      his hand: if the animation gets interrupted (push, fall, game AI) or if the game

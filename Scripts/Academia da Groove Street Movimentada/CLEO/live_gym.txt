@@ -603,6 +603,53 @@ SpawnGym:
 /* ========================================================================= */
 UpdateGym:
     /* ---------------------------------------------------------------------
+       ALGUMA COISA EXPLODIU AQUI DENTRO?
+       (granada, C4/bomba, molotov, foguete, barril, carro...)
+       fTmpZ fica em 1.0 durante este ciclo e todo mundo reage: alguns
+       correm para a porta e outros partem para a briga.
+       --------------------------------------------------------------------- */
+    fTmpZ = 0.0
+    IF IS_EXPLOSION_IN_AREA EXPLOSION_GRENADE 748.0 -12.0 998.0 782.0 22.0 1008.0
+        fTmpZ = 1.0
+    ENDIF
+    IF IS_EXPLOSION_IN_AREA EXPLOSION_MOLOTOV 748.0 -12.0 998.0 782.0 22.0 1008.0
+        fTmpZ = 1.0
+    ENDIF
+    IF IS_EXPLOSION_IN_AREA EXPLOSION_ROCKET 748.0 -12.0 998.0 782.0 22.0 1008.0
+        fTmpZ = 1.0
+    ENDIF
+    IF IS_EXPLOSION_IN_AREA EXPLOSION_ROCKET_WEAK 748.0 -12.0 998.0 782.0 22.0 1008.0
+        fTmpZ = 1.0
+    ENDIF
+    IF IS_EXPLOSION_IN_AREA EXPLOSION_CAR 748.0 -12.0 998.0 782.0 22.0 1008.0
+        fTmpZ = 1.0
+    ENDIF
+    IF IS_EXPLOSION_IN_AREA EXPLOSION_CAR_QUICK 748.0 -12.0 998.0 782.0 22.0 1008.0
+        fTmpZ = 1.0
+    ENDIF
+    IF IS_EXPLOSION_IN_AREA EXPLOSION_MINE 748.0 -12.0 998.0 782.0 22.0 1008.0
+        fTmpZ = 1.0
+    ENDIF
+    IF IS_EXPLOSION_IN_AREA EXPLOSION_OBJECT 748.0 -12.0 998.0 782.0 22.0 1008.0
+        fTmpZ = 1.0
+    ENDIF
+    IF IS_EXPLOSION_IN_AREA EXPLOSION_TANK_GRENADE 748.0 -12.0 998.0 782.0 22.0 1008.0
+        fTmpZ = 1.0
+    ENDIF
+    IF IS_EXPLOSION_IN_AREA EXPLOSION_SMALL 748.0 -12.0 998.0 782.0 22.0 1008.0
+        fTmpZ = 1.0
+    ENDIF
+
+    /* O jogador acabou de armar/arremessar/detonar uma bomba? */
+    IF IS_CHAR_SHOOTING scplayer
+        GET_CURRENT_CHAR_WEAPON scplayer curPed
+        IF curPed >= WEAPONTYPE_REMOTE_SATCHEL_CHARGE
+        AND curPed <= WEAPONTYPE_DETONATOR
+            fTmpZ = 1.0
+        ENDIF
+    ENDIF
+
+    /* ---------------------------------------------------------------------
        Arma apontada: somente o pedestre mirado reage, e somente se o jogador
        estiver de fato com uma arma na mao (mira de punhos nao assusta).
        A marca (ST_MARK) e consumida no mesmo ciclo, logo abaixo.
@@ -751,6 +798,7 @@ UpdateGym:
                                 ELSE
                                     IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedJogger1 WEAPONTYPE_ANYMELEE
                                     OR NOT IS_CHAR_HEALTH_GREATER pedJogger1 95
+                                    OR fTmpZ = 1.0
                                         /* Foi agredido de verdade (soco, arma branca,
                                            tiro, bomba, atropelamento): foge ou revida.
                                            Trombada nao passa por aqui. */
@@ -762,6 +810,7 @@ UpdateGym:
                                             GET_CURRENT_CHAR_WEAPON scplayer stJogger1
                                             IF stJogger1 >= WT_BOMB_FIRST
                                             AND stJogger1 <= WT_BOMB_LAST
+                                            AND fTmpZ = 0.0
                                                 GOSUB FleeToExit
                                                 stJogger1 = ST_FLEE
                                             ELSE
@@ -869,6 +918,7 @@ UpdateGym:
                                 ELSE
                                     IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedJogger2 WEAPONTYPE_ANYMELEE
                                     OR NOT IS_CHAR_HEALTH_GREATER pedJogger2 95
+                                    OR fTmpZ = 1.0
                                         /* Foi agredido de verdade (soco, arma branca,
                                            tiro, bomba, atropelamento): foge ou revida.
                                            Trombada nao passa por aqui. */
@@ -880,6 +930,7 @@ UpdateGym:
                                             GET_CURRENT_CHAR_WEAPON scplayer stJogger2
                                             IF stJogger2 >= WT_BOMB_FIRST
                                             AND stJogger2 <= WT_BOMB_LAST
+                                            AND fTmpZ = 0.0
                                                 GOSUB FleeToExit
                                                 stJogger2 = ST_FLEE
                                             ELSE
@@ -987,6 +1038,7 @@ GOSUB DropDumbbell1
                                 ELSE
                                     IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedLifter1 WEAPONTYPE_ANYMELEE
                                     OR NOT IS_CHAR_HEALTH_GREATER pedLifter1 95
+                                    OR fTmpZ = 1.0
                                         /* Foi agredido de verdade (soco, arma branca,
                                            tiro, bomba, atropelamento): foge ou revida.
                                            Trombada nao passa por aqui. */
@@ -998,6 +1050,7 @@ GOSUB DropDumbbell1
                                             GET_CURRENT_CHAR_WEAPON scplayer stLifter1
                                             IF stLifter1 >= WT_BOMB_FIRST
                                             AND stLifter1 <= WT_BOMB_LAST
+                                            AND fTmpZ = 0.0
                                                 GOSUB FleeToExit
                                                 stLifter1 = ST_FLEE
                                             ELSE
@@ -1115,6 +1168,7 @@ GOSUB DropDumbbell2
                                 ELSE
                                     IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedLifter2 WEAPONTYPE_ANYMELEE
                                     OR NOT IS_CHAR_HEALTH_GREATER pedLifter2 95
+                                    OR fTmpZ = 1.0
                                         /* Foi agredido de verdade (soco, arma branca,
                                            tiro, bomba, atropelamento): foge ou revida.
                                            Trombada nao passa por aqui. */
@@ -1126,6 +1180,7 @@ GOSUB DropDumbbell2
                                             GET_CURRENT_CHAR_WEAPON scplayer stLifter2
                                             IF stLifter2 >= WT_BOMB_FIRST
                                             AND stLifter2 <= WT_BOMB_LAST
+                                            AND fTmpZ = 0.0
                                                 GOSUB FleeToExit
                                                 stLifter2 = ST_FLEE
                                             ELSE
@@ -1243,6 +1298,7 @@ GOSUB DropDumbbell2
                                 ELSE
                                     IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedBoxer1 WEAPONTYPE_ANYMELEE
                                     OR NOT IS_CHAR_HEALTH_GREATER pedBoxer1 95
+                                    OR fTmpZ = 1.0
                                         /* Foi agredido de verdade (soco, arma branca,
                                            tiro, bomba, atropelamento): foge ou revida.
                                            Trombada nao passa por aqui. */
@@ -1254,6 +1310,7 @@ GOSUB DropDumbbell2
                                             GET_CURRENT_CHAR_WEAPON scplayer stBoxer1
                                             IF stBoxer1 >= WT_BOMB_FIRST
                                             AND stBoxer1 <= WT_BOMB_LAST
+                                            AND fTmpZ = 0.0
                                                 GOSUB FleeToExit
                                                 stBoxer1 = ST_FLEE
                                             ELSE
@@ -1361,6 +1418,7 @@ GOSUB DropDumbbell2
                                 ELSE
                                     IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedBoxer2 WEAPONTYPE_ANYMELEE
                                     OR NOT IS_CHAR_HEALTH_GREATER pedBoxer2 95
+                                    OR fTmpZ = 1.0
                                         /* Foi agredido de verdade (soco, arma branca,
                                            tiro, bomba, atropelamento): foge ou revida.
                                            Trombada nao passa por aqui. */
@@ -1372,6 +1430,7 @@ GOSUB DropDumbbell2
                                             GET_CURRENT_CHAR_WEAPON scplayer stBoxer2
                                             IF stBoxer2 >= WT_BOMB_FIRST
                                             AND stBoxer2 <= WT_BOMB_LAST
+                                            AND fTmpZ = 0.0
                                                 GOSUB FleeToExit
                                                 stBoxer2 = ST_FLEE
                                             ELSE
@@ -1479,6 +1538,7 @@ GOSUB DropDumbbell2
                                 ELSE
                                     IF HAS_CHAR_BEEN_DAMAGED_BY_WEAPON pedShopper WEAPONTYPE_ANYMELEE
                                     OR NOT IS_CHAR_HEALTH_GREATER pedShopper 95
+                                    OR fTmpZ = 1.0
                                         /* Foi agredido de verdade (soco, arma branca,
                                            tiro, bomba, atropelamento): foge ou revida.
                                            Trombada nao passa por aqui. */
@@ -1490,6 +1550,7 @@ GOSUB DropDumbbell2
                                             GET_CURRENT_CHAR_WEAPON scplayer stShopper
                                             IF stShopper >= WT_BOMB_FIRST
                                             AND stShopper <= WT_BOMB_LAST
+                                            AND fTmpZ = 0.0
                                                 GOSUB FleeToExit
                                                 stShopper = ST_FLEE
                                             ELSE

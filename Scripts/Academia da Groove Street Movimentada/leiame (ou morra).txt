@@ -86,7 +86,11 @@ O QUE HÁ DE NOVO E O QUE FOI OTIMIZADO NESTA VERSÃO:
        * dano sério de qualquer origem (tiro, explosão, granada, molotov,
          atropelamento);
        * tiro por perto (somente armas de fogo, mesmo errando o alvo);
-       * arma apontada para ele, com arma na mão. Mira de punhos não assusta.
+       * arma apontada para ele, com arma na mão. Mira de punhos não assusta;
+       * explosão dentro da academia — granada, C4/bomba (satchel), molotov,
+         foguete, barril, carro — ou o jogador armando/arremessando/detonando uma
+         bomba. Aí a academia inteira reage: uns correm para a porta, outros
+         partem para a briga (sorteio individual de cada um).
      Esbarrar/trombar não conta mais como agressão.
    - Trombada não cancela o exercício nem tira o halter da mão: se a animação for
      interrompida (empurrão, queda, IA do jogo) ou se o próprio jogo soltar o objeto
