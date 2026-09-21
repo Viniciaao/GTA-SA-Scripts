@@ -1,0 +1,6 @@
+MMSG1 O motor morreu! Segura ~y~E~w~ pra ligar de novo
+MMSG2 Marcha: ~y~%i~w~/~y~%i
+MMSG3 Marcha: ~y~R~w~ (carro de %i marchas)
+MMSG4 ~y~Som: ~r~%i
+SNDSOFF ~r~Soundize nao instalado.~w~ Cambio manual em modo de audio vanilla.
+SNDSOLD ~r~Soundize desatualizado!~w~ Atualiza o mod pra usar a API nova.

@@ -1,0 +1,136 @@
+============================================================================
+NFRSHIFT GEARS SOUNDIZE
+câmbio manual pro GTA SA — recriação do NFRShift Gears Mod
+adaptado pro Soundize (e com opção pra desativar a animação de pular marcha)
+============================================================================
+
+O QUE É ISSO?
+-------------
+A recriação do câmbio manual (NFRShift Gears Mod) reconstruída em cima do
+sistema de som do Soundize, do Junior_Djjr:
+
+    https://www.mixmods.com.br/2026/06/soundize/
+
+A ideia: o Soundize já tem todo o sistema de som e RPM realista (marchas,
+corte de acelerador na troca, backfire, turbo, som de interior etc), então
+este câmbio manual controla as marchas SEM brigar com o som — e ainda lê o
+RPM/marcha reais do Soundize pra mostrar no HUD.
+
+E tem a opção nova `DisableShiftAnim`: desliga a animação de "pular marcha"
+(aquele TASK_PLAY_ANIM changegear do braço do CJ) pra ficar redondo com mods
+de animação de motorista como o **VEHIK do zzpuma**, que já anima a mão no
+câmbio sozinho.
+
+INSTALAÇÃO
+----------
+Requer: CLEO 4.4.4+ (ou CLEO 5), CLEO+, e de preferência o Soundize
+(sem Soundize o câmbio funciona do mesmo jeito, só com o áudio vanilla).
+
+Copie pra pasta do jogo:
+
+    cleo/NFRShift Gears Soundize.cs        <- o script (compilado)
+    cleo/NFRShift Gears Soundize.ini       <- configuração
+    cleo/CLEO_TEXT/NFRShift Gears Soundize.fxt  <- textos do HUD
+
+Do mod original você também precisa (se já usa o NFRShift, já tem tudo):
+
+    cleo/gbox.txd                          <- texturas do painel (gearbox,
+                                              gear, gcenter, gup, gdown,
+                                              tail, tail2)
+    cleo/NFR Shift Gear/gears_sound/       <- OPCIONAL: 1.mp3 2.mp3 3.mp3
+                                              4.mp3 5.mp3 gas.mp3 (som de
+                                              engate da alavanca)
+
+Se usa ModLoader, pode jogar tudo numa pasta dentro de modloader/ também.
+
+COMO USA (igual ao mod original)
+--------------------------------
+- Motos/quadriciclos trocam marchas com botão esquerdo (sobe) e direito
+  (desce) do mouse.
+- Carros: segure a embreagem (Shift esquerdo por padrão) que o painel da
+  alavanca em H aparece. Mova a alavanca com o mouse:
+      1  3  5      - posição do meio = ponto morto (N)
+     2  4  R       - R = ré (também engata segurando o botão Circle/analógico
+                      direito no ponto morto)
+- Toque rápido na embreagem (<50 ms) não entra no câmbio manual.
+- Se soltar o acelerador com o motor muito lento na marcha, o motor morre
+  (aparece o aviso; segura E pra ligar de novo).
+- Ctrl esquerdo com acelerador = over-rev (o mod original deixa, mantive).
+
+O QUE MUDOU EM RELAÇÃO AO MOD ORIGINAL
+--------------------------------------
+1. INTEGRAÇÃO SOUNDIZE (seção [Soundize] do .ini):
+   - O script pega a API oficial do Soundize (Ext_GetVehicleRPM,
+     Ext_GetVehicleMaxRPM, Ext_GetVehicleGear, Ext_IsVehicleUsingAnyBank).
+   - Enquanto o carro toca um banco de som do Soundize:
+       * O HUD mostra a marcha do SOM (não só a marcha do câmbio) e a barra
+         de RPM em tempo real no pé da tela.
+       * O acelerador é cortado progressivamente em 80% da velocidade máxima
+         da marcha engatada (ShiftThreshold). Como o Soundize calcula o RPM
+         pela velocidade, segurar a velocidade abaixo do ponto de troca faz
+         o Soundize NUNCA subir de marcha sozinho — quem manda na marcha é
+         você, e o som/RPM continuam realistas.
+       * A marcha escolhida também é cravada no byte de marcha da entidade
+         de áudio do jogo (WriteGearToAudio) — se o Soundize considerar o
+         estado de áudio do jogo, ele segue a marcha cravada na hora.
+   - Em carros SEM banco do Soundize (áudio nativo), o comportamento é o do
+     mod original (SwitchCarGearAudio no byte +0xAA da audio entity).
+
+2. GearLimitMode novo: por padrão o limite de cada marcha agora usa a janela
+   de marcha da PRÓPRIA handling do carro (aGears.fChangeUpVelocity) — o
+   mesmo dado que o jogo e o Soundize usam pra calcular marcha. Então carro
+   de 3 marchas tem limite de 3 marchas, carro preparado de 6 tem 6, tudo
+   automático. Os modos antigos continuam disponíveis (1 = proporcional,
+   2 = tabela fixa de km/h do original).
+
+3. DisableShiftAnim (pro VEHIK): 1 = o script não carrega nem toca a
+   animação changegear. O resto (sons de engate, painel, tudo) continua
+   igual. Se você NÃO usa VehIK e gosta da animação, bota 0.
+
+4. ShowRPMBar: barra de RPM de verdade (API do Soundize) com cores
+   verde/laranja/vermelho conforme o RPM, e marca visual de ~75%/90%.
+
+5. Organização geral: INI própria (cleo/NFRShift Gears Soundize.ini), textos
+   próprios (.fxt incluso), sem código morto, e comentado.
+
+AJUSTE FINO COM O SOUNDIZE
+--------------------------
+- O Soundize tem a opção RPMmode no .ini dele (0 = esportivo, sobe de marcha
+  mais tarde; 1 = normal, sobe mais cedo). Se com RPMmode=1 o carro ainda
+  subir de marcha sozinho antes do corte, baixe o ShiftThreshold pra 0.7.
+- Se a marcha ficar sem força antes do corte (carro "morrendo" cedo),
+  suba o ShiftThreshold pra 0.85.
+- A linha laranja do HUD ("Som: X") mostra a marcha que o SOM está tocando.
+  Ela deve ser igual à marcha que você engatou. Se diferenciar, é sinal de
+  que o carro subiu de marcha sozinho — ajuste o ShiftThreshold.
+
+COMPILAÇÃO (pra quem mexe no código)
+------------------------------------
+Fonte: Scripts/NFRShift Gears Soundize/CLEO/NFRShift Gears Soundize.txt
+Compilado com gta3sc (dialeto GTA3script):
+
+    gta3sc compile "NFRShift Gears Soundize.txt" --config=gtasa ^
+        --guesser -fbreak-continue --cs -o "NFRShift Gears Soundize.cs"
+
+Precisa de CLEO+ no jogo por causa dos comandos 0x0E12 (GET_VEHICLE_SUBCLASS),
+0x0E60 (SET_CAMERA_CONTROL) e 0x0EFE (GET_LOADED_LIBRARY).
+
+Detalhe: esta versão usa SET_TEXT_EDGE com 5 argumentos (assinatura oficial
+do SA, opcode 081C) — o script antigo usava 4.
+
+ARQUIVOS
+--------
+    CLEO/NFRShift Gears Soundize.cs    script compilado
+    CLEO/NFRShift Gears Soundize.txt   fonte
+    CLEO/NFRShift Gears Soundize.sc    cópia do fonte
+    CLEO/NFRShift Gears Soundize.ini   configuração
+    CLEO/NFRShift Gears Soundize.fxt   textos (colocar em CLEO/CLEO_TEXT)
+
+CRÉDITOS
+--------
+- NFRShift Gears Mod — base desta recriação
+- Junior_Djjr — Soundize (sistema de som, RPM realista e API pública)
+- zzpuma — VehIK (o motivo da opção DisableShiftAnim existir)
+- chrystianfarias — engenharia de som do Soundize
+
+Não se esquece: se curti o Soundize, apoia o Patreon do Junior_Djjr.
