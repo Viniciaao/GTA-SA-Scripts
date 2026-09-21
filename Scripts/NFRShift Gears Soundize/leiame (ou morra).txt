@@ -96,11 +96,34 @@ vida real), em vez de hesitar/cortar antes e o som ficar pipocando.
 O carro não sobe de marcha sozinho porque nunca cruza o ponto de troca —
 quem sobe é você.
 
-RE COM EMBREAGEM PISADA
+MARCHA ALTA PARADO (sair parado na 5ª, por exemplo)
+---------------------------------------------------
+Antes (bug desde o mod original): sair parado numa marcha alta fazia o
+carro acelerar normal enquanto o som do Soundize passava as marchas
+sozinho. Agora: fora da faixa da marcha o motor fica AFOGANDO (aceleração
+fraca, como na vida real) — e se soltar o acelerador, o motor morre por
+falta de velocidade. Importante saber: o Soundize calcula a marcha do som
+pela VELOCIDADE (a API dele não tem como o script "cravar" a marcha), então
+enquanto a velocidade sobe pelas faixas das marchas mais baixas o som
+acompanha elas; no momento que a velocidade entra na faixa da SUA marcha,
+o som trava nela. Pra pedir um setter de marcha pra uma versão futura,
+mapeia esse feedback pro Junior_Djjr (Ext_SetVehicleGear).
+
+PASSAR MARCHA SEM FREAR
 -----------------------
-Acelerar com a embreagem pisada agora FAZ SOM: o motor gira (rev) e o
-freio segura o carro no lugar (tipo queimar pneu parado). No ponto morto
-idem. Antes o script zerava o pedal e o motor não fazia nada.
+Corrigido: com a embreagem pisada o script não aplica mais freio nenhum —
+o carro desacelera só de arrasto, como apertar a embreagem de verdade.
+(Em versões anteriores, acelerar com a embreagem pisada acionava freio.)
+
+RE COM EMBREAGEM PISADA (ClutchRevSim = 1)
+------------------------------------------
+Acelerar com a embreagem pisada (ou no ponto morto), com o carro PARADO,
+agora simula o motor girando: o som sobe o RPM sem o carro andar. O rev é
+simulado pela velocidade interna da transmissão — o som do jogo acompanha
+e o Soundize acompanha quando calcula o RPM por ela (se no seu caso o rev
+não soar com o Soundize, é porque o RPM dele não vem dessa velocidade; aí
+só o som vanilla gira). Sem freio, sem andar. Em movimento, a embreagem
+só silencia o motor (o carro desacelera por arrasto).
 
 
 

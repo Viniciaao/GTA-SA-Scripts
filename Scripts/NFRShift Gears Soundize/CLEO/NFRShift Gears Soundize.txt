@@ -61,8 +61,11 @@ NOP
                                          (0.97 = vai NO TALO igual na vida
                                          real; o RPM fica cravado no limite
                                          em vez de hesitar/cortar antes)
-    - Acelerar com a embreagem pisada agora FAZ SOM (o motor gira, o carro
-      fica segurado no lugar, tipo queimar pneu parado)
+    - [config] ClutchRevSim ............ acelerar com a embreagem pisada
+                                         (parado) simula o motor girando,
+                                         SEM freio e sem o carro andar
+    - Sair PARADO numa marcha alta (ex.: 5a) agora sai fraco/afogando, em
+      vez de acelerar normal enquanto o som passa as marchas sozinho
     - [config] StallSpeedFactor ........ 0.5: se a velocidade cair abaixo de
                                          50% da faixa da marcha (embreagem
                                          solta), o motor labuta e MORRE
@@ -113,7 +116,7 @@ NOP
 
 // ============================ VARIAVEIS ============================
 LVAR_INT scplayer iCar pVeh iSubclass gear pGasPedal clutchKey
-LVAR_INT fps_set iniGearHelper iniNoAnim iniShowRPM iniGearLimitMode iniRealStart
+LVAR_INT fps_set iniGearHelper iniNoAnim iniShowRPM iniGearLimitMode iniRealStart clutchRevSim
 LVAR_INT sndEnabled sndWriteGear iniInhibitVanillaFx
 LVAR_INT sndLoaded pSoundize pIsBank pGetRPM pGetMaxRPM pGetGear
 LVAR_FLOAT mouseX mouseY gear_posX gear_posY gear_pointer fThresh
@@ -180,6 +183,12 @@ LOAD_SPRITE 7 "tail2"
     // NOVO: zerar o efeito de troca de marcha do audio vanilla (fora do Soundize)
     IF NOT READ_INT_FROM_INI_FILE "cleo/NFRShift Gears Soundize.ini" "Soundize" "InhibitShiftFxVanilla" iniInhibitVanillaFx
         WRITE_INT_TO_INI_FILE 1 "cleo/NFRShift Gears Soundize.ini" "Soundize" "InhibitShiftFxVanilla"
+    ENDIF
+
+    // NOVO: rev com embreagem pisada (parado), simulado pela velocidade
+    // interna da transmissao (sem freio, sem o carro andar)
+    IF NOT READ_INT_FROM_INI_FILE "cleo/NFRShift Gears Soundize.ini" "config" "ClutchRevSim" clutchRevSim
+        WRITE_INT_TO_INI_FILE 1 "cleo/NFRShift Gears Soundize.ini" "config" "ClutchRevSim"
     ENDIF
 
     // NOVO: partida realista (tranco em marcha / ligar em ponto morto)
@@ -271,14 +280,11 @@ WHILE TRUE
                             BREAK
                         ENDIF
 
-                        IF IS_BUTTON_PRESSED 0 16
-                            // acelerar com a embreagem pisada: o motor gira
-                            // (rev) e o freio segura o carro no lugar
-                            WRITE_MEMORY pGasPedal 2 255 FALSE
-                            APPLY_BRAKES_TO_PLAYERS_CAR 0 1
-                        ELSE
-                            APPLY_BRAKES_TO_PLAYERS_CAR 0 0
-                        ENDIF
+                        // Embreagem pisada de verdade: sem gas pro cambio
+                        // (o carro desacelera so de arrasto, SEM freio) e o
+                        // rev simulado faz o motor girar quando acelera parado
+                        WRITE_MEMORY pGasPedal 2 0 FALSE
+                        CLEO_CALL ClutchRevSim 0 iCar fThresh clutchRevSim
 
                         IF IS_KEY_PRESSED VK_KEY_E
                             SET_CAR_ENGINE_ON iCar 1
@@ -460,20 +466,16 @@ Transmission:
         SWITCH gear
             CASE 0
                 IF IS_BUTTON_PRESSED 0 16
-                    // acelerar em ponto morto: o motor GIRA (rev) e o freio
-                    // segura o carro no lugar
-                    WRITE_MEMORY pointer 2 255 FALSE
-                    APPLY_BRAKES_TO_PLAYERS_CAR 0 1
-                ELSE
                     WRITE_MEMORY pointer 2 0 FALSE
-                    IF IS_BUTTON_PRESSED 0 14
-                        IF VehSpeed < 0.0
-                        OR IS_CAR_STOPPED c
-                            APPLY_BRAKES_TO_PLAYERS_CAR 0 1
-                        ENDIF
-                    ELSE
-                        APPLY_BRAKES_TO_PLAYERS_CAR 0 0
+                ENDIF
+
+                IF IS_BUTTON_PRESSED 0 14
+                    IF VehSpeed < 0.0
+                    OR IS_CAR_STOPPED c
+                        APPLY_BRAKES_TO_PLAYERS_CAR 0 1
                     ENDIF
+                ELSE
+                    APPLY_BRAKES_TO_PLAYERS_CAR 0 0
                 ENDIF
                 BREAK
             DEFAULT
@@ -565,6 +567,23 @@ Transmission:
 
                         IF IS_KEY_PRESSED VK_LCONTROL
                             WRITE_MEMORY pointer 2 400 FALSE
+                        ENDIF
+
+                        // Marcha fora da faixa (muito devagar pra essa
+                        // marcha): motor afogando, aceleracao fraca. Sair
+                        // PARADO numa marcha alta (ex.: 5a) nao empurra o
+                        // carro mais; assim o som so acompanha as trocas
+                        // enquanto a velocidade sobe pelas faixas, e trava
+                        // na sua marcha quando entra na faixa dela.
+                        IF gear >= 2
+                        AND gear <= 6
+                            CLEO_CALL GetGearMinSpeedLimit 0 c gear fMinSpeed
+                            fMinSpeed += 0.5
+                            IF VehSpeed < fMinSpeed
+                                IF gas > 45
+                                    gas = 45
+                                ENDIF
+                            ENDIF
                         ENDIF
 
                         IF NOT IS_CAR_ENGINE_ON c
@@ -926,6 +945,54 @@ GetCurrentVehicleSpeed:
     READ_MEMORY pointer 4 FALSE mSpeed
 
 CLEO_RETURN 0 mSpeed
+}
+
+{
+// CLEO_CALL ClutchRevSim 0 car fThresh enabled
+//
+// Simula o motor girando com a embreagem pisada (ou em ponto morto), com o
+// carro parado: sobe a velocidade INTERNA da transmissao (fCurrentSpeed) como
+// se o motor estivesse sendo acelerado. O pedal real continua zerado, entao o
+// carro NAO anda e NAO freia. O som padrao do jogo acompanha essa velocidade;
+// o Soundize tambem acompanha quando calcula o RPM por ela.
+// Em movimento nao mexe em nada (a embreagem so silencia o motor, o carro
+// desacelera por arrasto, como na vida real).
+ClutchRevSim:
+    LVAR_INT car
+    LVAR_FLOAT fThresh
+    LVAR_INT enabled p i
+    LVAR_FLOAT f1st fTgt fCur
+
+    IF IS_CAR_ENGINE_ON car
+        GET_VEHICLE_POINTER car p
+        p += 0x384 // CVehicle.tHandlingData
+        READ_MEMORY p 4 FALSE p
+        p += 0x2C  // tHandlingData.CTransmission
+        i = p + 0x0C
+        i += 0x4   // aGears[1].fChangeUpVelocity
+        READ_MEMORY i 4 FALSE f1st
+        p += 0x64  // CTransmission.fCurrentSpeed
+        READ_MEMORY p 4 FALSE fCur
+
+        IF fCur < 0.6
+        AND fCur > -0.6
+            IF enabled = 1
+            AND IS_BUTTON_PRESSED 0 16
+                fTgt = f1st * fThresh
+                fTgt -= fCur
+                fTgt *= 0.18
+                fCur +=@ fTgt
+            ELSE
+                IF fCur > 0.01
+                    fTgt = fCur * 0.3
+                    fCur -=@ fTgt
+                ENDIF
+            ENDIF
+            WRITE_MEMORY p 4 fCur FALSE
+        ENDIF
+    ENDIF
+
+CLEO_RETURN 0
 }
 
 {

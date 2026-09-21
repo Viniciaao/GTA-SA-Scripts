@@ -71,8 +71,25 @@ it is game physics, the sound follows on its own):
 - Full throttle in any gear now pulls cleanly TO THE REDLINE: the RPM
   pins at the gear limit with a rev-limiter buzz (ShiftThreshold 0.97)
   instead of hesitating/cutting early. No auto-upshift, ever.
-- Revving with the clutch pressed now makes SOUND: the engine revs while
-  the brakes hold the car in place (neutral/burnout style rev).
+- Revving with the clutch pressed now makes SOUND (ClutchRevSim = 1): with
+  the car stopped, the engine revs via the transmission's internal speed
+  while the real pedal stays zeroed — no movement, NO BRAKES. The vanilla
+  audio follows it, and Soundize follows it whenever it derives RPM from
+  that speed (if your Soundize build doesn't, only vanilla audio revs).
+- Shifting gears no longer brakes the car: clutch pressed = the car just
+  coasts on drag, like a real clutch.
+
+HIGH-GEAR LAUNCH (Soundize users, read this)
+--------------------------------------------
+Starting from a standstill in a high gear (e.g., 5th) no longer makes the
+car accelerate normally while the Soundize sound runs through its gears
+on its own. Out of the gear's speed window the engine now lugs (weak
+acceleration, like real life), and releasing the throttle stalls it.
+Technical note: Soundize derives the played gear from SPEED (its API has
+no gear setter), so while speed climbs through the lower gears' windows
+the sound follows them; as soon as speed enters your gear's window the
+sound locks to your gear. A "Ext_SetVehicleGear" request to Junior_Djjr
+would solve this on the Soundize side.
 
 Old behavior, for comparison: E only worked while holding the clutch,
 starting in gear kept the engine on, the throttle feed was cut early
