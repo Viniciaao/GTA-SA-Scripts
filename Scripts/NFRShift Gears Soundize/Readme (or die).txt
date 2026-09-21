@@ -50,6 +50,31 @@ CONTROLS (same as the original mod)
 - Releasing the gas at very low RPM in gear stalls the engine (press E to
   restart).
 
+REALISTIC STARTING (RealisticStart = 1)
+---------------------------------------
+Just like real life (works for Soundize audio and vanilla audio alike —
+it is game physics, the sound follows on its own):
+
+- Dead engine, STOPPED IN GEAR, pressing E (no clutch): the engine cranks,
+  the car LURCHES with its own power (in reverse, backwards) and the
+  engine DIES half a second later ("afogou" = flooded/stalled). Holding E
+  repeats the lurch, like someone grinding the starter.
+- Pressing the clutch DURING the lurch saves it: the engine catches and
+  stays on.
+- Dead engine in NEUTRAL + E: the engine just starts and stays on.
+- Dead engine ROLLING in gear (from ~7 km/h) + E: bump start!
+- On a hill the lurch can roll the car fast enough for it to catch. This
+  emerges naturally from the system, just like real life.
+
+Note: after starting with the clutch held in gear, releasing it without
+gas makes the car creep slowly (the original mod's idle) instead of
+stalling — kept that way so GTA hills stay playable.
+
+Old behavior, for comparison: E only worked while holding the clutch, and
+starting in gear kept the engine on (and the car even crept by itself).
+Set RealisticStart = 0 to go back to that.
+
+
 WHAT CHANGED VS THE ORIGINAL MOD
 --------------------------------
 1. SOUNDIZE INTEGRATION ([Soundize] section in the .ini):

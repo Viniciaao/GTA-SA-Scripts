@@ -57,6 +57,33 @@ COMO USA (igual ao mod original)
   (aparece o aviso; segura E pra ligar de novo).
 - Ctrl esquerdo com acelerador = over-rev (o mod original deixa, mantive).
 
+PARTIDA REALISTA (RealisticStart = 1)
+-------------------------------------
+Como na vida real (vale pro som do Soundize e pro som do jogo — é física
+do próprio jogo, o som acompanha sozinho):
+
+- Carro morto PARADO EM MARCHA + apertar E (sem embreagem):
+  o motor gira, o carro dá o TRANCO com a força dele próprio (na ré, o
+  tranco é pra trás) e o motor MORRE em meio segundo ("Afogou!").
+  Segurando E, o tranco repete, igual quem fica girando a chave.
+- Pisar a embreagem DURANTE o tranco: o motor pega e fica ligado
+  (você "salvou" o engate, igual na vida real).
+- Carro morto em PONTO MORTO + E: o motor fica ligado, sem tranco.
+- Carro morto ROLANDO em marcha (a partir de ~7 km/h) + E:
+  pega no tranco sozinho (bump start / "pegar no empurrão").
+- Na ladeira o tranco pode embalar o carro o suficiente pra ele pegar.
+  É emergente do próprio sistema, do jeito que a vida real faz.
+
+Detalhe: depois de ligar segurando a embreagem em marcha, se soltar ela
+sem acelerar o carro anda devagarzinho (marcha lenta do mod original) em
+vez de morrer — deixei assim pra ladeira do GTA não virar inferno.
+
+Simulação do comportamento antigo, pra comparar: antes o E só funcionava
+com a embreagem segurada, e ligando em marcha o carro ficava ligado e
+ainda engatinhava sozinho (irreal). Com RealisticStart = 0 você volta pra
+esse comportamento.
+
+
 O QUE MUDOU EM RELAÇÃO AO MOD ORIGINAL
 --------------------------------------
 1. INTEGRAÇÃO SOUNDIZE (seção [Soundize] do .ini):

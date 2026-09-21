@@ -60,6 +60,19 @@ NOP
     - [config] ShiftThreshold .......... fracao da velocidade maxima da
                                          marcha onde o acelerador comeca a
                                          cortar (0.80 = 80% do ponto de troca)
+    - [config] RealisticStart .......... partida realista (simulada e pedida
+                                         pelo povo):
+                                           * parado EM MARCHA + E (sem embre-
+                                             agem) = o carro da o tranco com a
+                                             forca dele proprio e o motor
+                                             MORRE (afogou), como na vida real
+                                           * PONTO MORTO + E = fica ligado
+                                           * rolando em marcha (>= ~7 km/h) +
+                                             E = pega no tranco (bump start)
+                                           * pisar a embreagem durante o
+                                             tranco salva o engate
+                                         Funciona com som do Soundize e
+                                         vanilla (e fisica do jogo).
 
     REQUERIMENTOS:
 
@@ -93,7 +106,7 @@ NOP
 
 // ============================ VARIAVEIS ============================
 LVAR_INT scplayer iCar pVeh iSubclass gear pGasPedal clutchKey
-LVAR_INT fps_set iniGearHelper iniNoAnim iniShowRPM iniGearLimitMode
+LVAR_INT fps_set iniGearHelper iniNoAnim iniShowRPM iniGearLimitMode iniRealStart
 LVAR_INT sndEnabled sndWriteGear iniInhibitVanillaFx
 LVAR_INT sndLoaded pSoundize pIsBank pGetRPM pGetMaxRPM pGetGear
 LVAR_FLOAT mouseX mouseY gear_posX gear_posY gear_pointer fThresh
@@ -162,6 +175,11 @@ LOAD_SPRITE 7 "tail2"
         WRITE_INT_TO_INI_FILE 1 "cleo/NFRShift Gears Soundize.ini" "Soundize" "InhibitShiftFxVanilla"
     ENDIF
 
+    // NOVO: partida realista (tranco em marcha / ligar em ponto morto)
+    IF NOT READ_INT_FROM_INI_FILE "cleo/NFRShift Gears Soundize.ini" "config" "RealisticStart" iniRealStart
+        WRITE_INT_TO_INI_FILE 1 "cleo/NFRShift Gears Soundize.ini" "config" "RealisticStart"
+    ENDIF
+
     // limite minimo/maximo saneavel para o ShiftThreshold
     IF fThresh < 0.1
     OR fThresh > 1.0
@@ -211,7 +229,7 @@ WHILE TRUE
             pGasPedal += 0x20
 
             // Trava aqui dirigindo (aplica os limites de marcha) ate pisar na embreagem
-            CLEO_CALL Transmission 0 iCar gear pVeh fThresh iniGearLimitMode sndLoaded pIsBank sndWriteGear iniInhibitVanillaFx iniGearHelper pGetRPM pGetMaxRPM pGetGear iniShowRPM
+            CLEO_CALL Transmission 0 iCar gear pVeh fThresh iniGearLimitMode sndLoaded pIsBank sndWriteGear iniInhibitVanillaFx iniGearHelper pGetRPM pGetMaxRPM pGetGear iniShowRPM iniRealStart
 
             IF IS_KEY_PRESSED clutchKey // Embreagem
                 SET_CAMERA_CONTROL FALSE
@@ -345,7 +363,7 @@ WHILE TRUE
                 SET_CAMERA_CONTROL TRUE
 
                 IF IS_CHAR_SITTING_IN_ANY_CAR scplayer
-                    CLEO_CALL Transmission 0 iCar gear pVeh fThresh iniGearLimitMode sndLoaded pIsBank sndWriteGear iniInhibitVanillaFx iniGearHelper pGetRPM pGetMaxRPM pGetGear iniShowRPM
+                    CLEO_CALL Transmission 0 iCar gear pVeh fThresh iniGearLimitMode sndLoaded pIsBank sndWriteGear iniInhibitVanillaFx iniGearHelper pGetRPM pGetMaxRPM pGetGear iniShowRPM iniRealStart
                 ENDIF
 
             ENDIF
@@ -358,7 +376,7 @@ ENDWHILE
 
 
 {
-// CLEO_CALL Transmission 0 car gear pVeh fThresh limitMode sndLoaded pIsBank sndWriteGear inhibitFx showHelper pGetRPM pGetMaxRPM pGetGear showRPM
+// CLEO_CALL Transmission 0 car gear pVeh fThresh limitMode sndLoaded pIsBank sndWriteGear inhibitFx showHelper pGetRPM pGetMaxRPM pGetGear showRPM realStart
 //
 // Laco principal de dirigibilidade com a marcha engatada. Roda preso aqui
 // enquanto o jogador nao pisar na embreagem. Controla o acelerador de acordo
@@ -369,8 +387,8 @@ ENDWHILE
 Transmission:
     LVAR_INT car gear pVeh
     LVAR_FLOAT fThresh
-    LVAR_INT limitMode sndLoaded pIsBank sndWriteGear inhibitFx showHelper pGetRPM pGetMaxRPM pGetGear showRPM
-    LVAR_INT player c maxGears pointer clutch gas acc first sndBank
+    LVAR_INT limitMode sndLoaded pIsBank sndWriteGear inhibitFx showHelper pGetRPM pGetMaxRPM pGetGear showRPM realStart
+    LVAR_INT player c maxGears pointer clutch gas acc first sndBank stallFlag
     LVAR_FLOAT GearSpeedLimit VehSpeed MaxVehSpeed fn fn2
 
     CONST_INT LOWEST 2
@@ -615,6 +633,59 @@ Transmission:
 
                 BREAK
         ENDSWITCH
+
+        // ================= PARTIDA REALISTA =================
+        // Motor desligado + E SEM embreagem:
+        //   - ponto morto: motor fica ligado (vida real)
+        //   - parado em marcha: tranco com a forca do proprio carro e o
+        //     motor morre em seguida (afogou)
+        //   - rolando em marcha (>= ~7 km/h): pega no tranco (bump start)
+        // Pisar a embreagem durante o tranco salva o engate.
+        IF realStart = 1
+        AND NOT IS_CAR_ENGINE_ON c
+        AND IS_KEY_PRESSED VK_KEY_E
+            IF gear = 0
+                SET_CAR_ENGINE_ON c 1 // ponto morto: fica ligado
+            ELSE
+                CLEO_CALL GetCurrentVehicleSpeed 0 c VehSpeed
+                IF VehSpeed > 2.0
+                OR VehSpeed < -2.0
+                    SET_CAR_ENGINE_ON c 1 // rolando em marcha: pegou no tranco
+                ELSE
+                    stallFlag = 0 // 0 = afogou | 1 = pegou/salvou
+                    SET_CAR_ENGINE_ON c 1
+                    timera = 0
+                    WHILE timera < 500
+                        WAIT 0
+                        IF gear = 7
+                            gas = -255 // re: tranco pra tras
+                        ELSE
+                            gas = timera // partida fraca e crescente (motor de arranque)
+                            IF gas > 255
+                                gas = 255
+                            ENDIF
+                        ENDIF
+                        WRITE_MEMORY pointer 2 gas FALSE
+                        IF IS_KEY_PRESSED clutch
+                            stallFlag = 1 // pisou a embreagem: salvou o engate
+                        ENDIF
+                        CLEO_CALL GetCurrentVehicleSpeed 0 c VehSpeed
+                        IF VehSpeed > 2.0
+                        OR VehSpeed < -2.0
+                            stallFlag = 1 // embalou: o motor pega
+                        ENDIF
+                        IF stallFlag = 1
+                            timera = 600
+                        ENDIF
+                    ENDWHILE
+                    IF stallFlag = 0
+                        WRITE_MEMORY pointer 2 0 FALSE
+                        SET_CAR_ENGINE_ON c 0
+                        PRINT_HELP MMSG5 //Afogou! Poe em ponto morto ou pisa na embreagem pra ligar
+                    ENDIF
+                ENDIF
+            ENDIF
+        ENDIF
 
         CLEO_CALL GetCurrentVehicleSpeed 0 c VehSpeed
         CLEO_CALL GearHelper 0 c gear showHelper pVeh sndLoaded pIsBank pGetRPM pGetMaxRPM pGetGear showRPM
