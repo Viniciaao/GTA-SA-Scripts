@@ -62,26 +62,46 @@ PARTIDA REALISTA (RealisticStart = 1)
 Como na vida real (vale pro som do Soundize e pro som do jogo — é física
 do próprio jogo, o som acompanha sozinho):
 
-- Carro morto PARADO EM MARCHA + apertar E (sem embreagem):
+- Carro morto, PARADO EM MARCHA, apertar E (sem embreagem):
   o motor gira, o carro dá o TRANCO com a força dele próprio (na ré, o
   tranco é pra trás) e o motor MORRE em meio segundo ("Afogou!").
   Segurando E, o tranco repete, igual quem fica girando a chave.
-- Pisar a embreagem DURANTE o tranco: o motor pega e fica ligado
-  (você "salvou" o engate, igual na vida real).
+- Pisar a embreagem DURANTE o tranco salva o engate: o motor pega e fica
+  ligado.
 - Carro morto em PONTO MORTO + E: o motor fica ligado, sem tranco.
 - Carro morto ROLANDO em marcha (a partir de ~7 km/h) + E:
   pega no tranco sozinho (bump start / "pegar no empurrão").
 - Na ladeira o tranco pode embalar o carro o suficiente pra ele pegar.
   É emergente do próprio sistema, do jeito que a vida real faz.
 
-Detalhe: depois de ligar segurando a embreagem em marcha, se soltar ela
-sem acelerar o carro anda devagarzinho (marcha lenta do mod original) em
-vez de morrer — deixei assim pra ladeira do GTA não virar inferno.
+MORTE DE MOTOR (também RealisticStart = 1)
+------------------------------------------
+- Soltou a embreagem com o carro PARADO em marcha e sem acelerar?
+  O motor morre depois de meio segundo — igual soltar a embreagem na
+  vida real. Pra ficar parado sem morrer: ponto morto ou embreagem
+  pisada.
+- Faltou velocidade pra marcha (ex.: freiou até 5 km/h ainda no 4 e
+  soltou tudo)? O motor LABUTA e morre em ~0,7 s. Reduza a marcha ou pise
+  a embreagem! O fator é ajustável no StallSpeedFactor (0 = desativa).
+- Acelerar no 4 parado contra a parede também mata o motor depois de um
+  tempo (emborrachou a embreagem). Largada se faz em 1ª :)
+- Rolando devagar em 1ª sem acelerar o carro continua engatinhando na
+  marcha lenta (marcha lenta de 1ª, como no carro real).
 
-Simulação do comportamento antigo, pra comparar: antes o E só funcionava
-com a embreagem segurada, e ligando em marcha o carro ficava ligado e
-ainda engatinhava sozinho (irreal). Com RealisticStart = 0 você volta pra
-esse comportamento.
+TALO / CORTE-GIRO (ShiftThreshold = 0.97)
+-----------------------------------------
+Acelerando em qualquer marcha o carro agora puxa ATÉ O TALO: o RPM sobe
+liso até o limite da marcha e fica CRAVADO nele (corta-giro, igual na
+vida real), em vez de hesitar/cortar antes e o som ficar pipocando.
+O carro não sobe de marcha sozinho porque nunca cruza o ponto de troca —
+quem sobe é você.
+
+RE COM EMBREAGEM PISADA
+-----------------------
+Acelerar com a embreagem pisada agora FAZ SOM: o motor gira (rev) e o
+freio segura o carro no lugar (tipo queimar pneu parado). No ponto morto
+idem. Antes o script zerava o pedal e o motor não fazia nada.
+
 
 
 O QUE MUDOU EM RELAÇÃO AO MOD ORIGINAL

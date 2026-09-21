@@ -57,9 +57,16 @@ NOP
                                          com Soundize), 1 = proporcional ao
                                          numero de marchas (estilo antigo),
                                          2 = tabela fixa de km/h
-    - [config] ShiftThreshold .......... fracao da velocidade maxima da
-                                         marcha onde o acelerador comeca a
-                                         cortar (0.80 = 80% do ponto de troca)
+    - [config] ShiftThreshold .......... onde fica o corte-giro da marcha
+                                         (0.97 = vai NO TALO igual na vida
+                                         real; o RPM fica cravado no limite
+                                         em vez de hesitar/cortar antes)
+    - Acelerar com a embreagem pisada agora FAZ SOM (o motor gira, o carro
+      fica segurado no lugar, tipo queimar pneu parado)
+    - [config] StallSpeedFactor ........ 0.5: se a velocidade cair abaixo de
+                                         50% da faixa da marcha (embreagem
+                                         solta), o motor labuta e MORRE
+                                         (falta velocidade pra marcha)
     - [config] RealisticStart .......... partida realista (simulada e pedida
                                          pelo povo):
                                            * parado EM MARCHA + E (sem embre-
@@ -155,9 +162,9 @@ LOAD_SPRITE 7 "tail2"
         WRITE_INT_TO_INI_FILE 0 "cleo/NFRShift Gears Soundize.ini" "config" "GearLimitMode"
     ENDIF
 
-    // NOVO: fracao do ponto de troca onde o acelerador comeca a cortar
+    // NOVO: onde fica o corte-giro da marcha (0.97 = vai no talo)
     IF NOT READ_FLOAT_FROM_INI_FILE "cleo/NFRShift Gears Soundize.ini" "config" "ShiftThreshold" fThresh
-        WRITE_FLOAT_TO_INI_FILE 0.8 "cleo/NFRShift Gears Soundize.ini" "config" "ShiftThreshold"
+        WRITE_FLOAT_TO_INI_FILE 0.97 "cleo/NFRShift Gears Soundize.ini" "config" "ShiftThreshold"
     ENDIF
 
     // NOVO: integração com o Soundize
@@ -181,9 +188,9 @@ LOAD_SPRITE 7 "tail2"
     ENDIF
 
     // limite minimo/maximo saneavel para o ShiftThreshold
-    IF fThresh < 0.1
+    IF fThresh < 0.3
     OR fThresh > 1.0
-        fThresh = 0.8
+        fThresh = 0.97
     ENDIF
 //
 
@@ -265,7 +272,12 @@ WHILE TRUE
                         ENDIF
 
                         IF IS_BUTTON_PRESSED 0 16
-                            WRITE_MEMORY pGasPedal 2 0 FALSE
+                            // acelerar com a embreagem pisada: o motor gira
+                            // (rev) e o freio segura o carro no lugar
+                            WRITE_MEMORY pGasPedal 2 255 FALSE
+                            APPLY_BRAKES_TO_PLAYERS_CAR 0 1
+                        ELSE
+                            APPLY_BRAKES_TO_PLAYERS_CAR 0 0
                         ENDIF
 
                         IF IS_KEY_PRESSED VK_KEY_E
@@ -389,7 +401,8 @@ Transmission:
     LVAR_FLOAT fThresh
     LVAR_INT limitMode sndLoaded pIsBank sndWriteGear inhibitFx showHelper pGetRPM pGetMaxRPM pGetGear showRPM realStart
     LVAR_INT player c maxGears pointer clutch gas acc first sndBank stallFlag
-    LVAR_FLOAT GearSpeedLimit VehSpeed MaxVehSpeed fn fn2
+    LVAR_FLOAT GearSpeedLimit VehSpeed MaxVehSpeed fn
+    LVAR_FLOAT fMinSpeed fLug fStall
 
     CONST_INT LOWEST 2
     CONST_INT LOW 1
@@ -409,7 +422,13 @@ Transmission:
         WRITE_INT_TO_INI_FILE 0 "cleo/NFRShift Gears Soundize.ini" "Manual" "Acceleration"
     ENDIF
 
+    // fator da faixa minima da marcha (abaixo disso o motor labuta e morre)
+    IF NOT READ_FLOAT_FROM_INI_FILE "cleo/NFRShift Gears Soundize.ini" "config" "StallSpeedFactor" fStall
+        WRITE_FLOAT_TO_INI_FILE 0.5 "cleo/NFRShift Gears Soundize.ini" "config" "StallSpeedFactor"
+    ENDIF
+
     timera = 0
+    timerb = 0
 
     pointer = 0xB73458
     pointer += 0x20
@@ -441,41 +460,34 @@ Transmission:
         SWITCH gear
             CASE 0
                 IF IS_BUTTON_PRESSED 0 16
-                    WRITE_MEMORY pointer 2 0 FALSE
-                ENDIF
-
-                IF IS_BUTTON_PRESSED 0 14
-                    IF VehSpeed < 0.0
-                    OR IS_CAR_STOPPED c
-                        APPLY_BRAKES_TO_PLAYERS_CAR 0 1
-                    ENDIF
+                    // acelerar em ponto morto: o motor GIRA (rev) e o freio
+                    // segura o carro no lugar
+                    WRITE_MEMORY pointer 2 255 FALSE
+                    APPLY_BRAKES_TO_PLAYERS_CAR 0 1
                 ELSE
-                    APPLY_BRAKES_TO_PLAYERS_CAR 0 0
+                    WRITE_MEMORY pointer 2 0 FALSE
+                    IF IS_BUTTON_PRESSED 0 14
+                        IF VehSpeed < 0.0
+                        OR IS_CAR_STOPPED c
+                            APPLY_BRAKES_TO_PLAYERS_CAR 0 1
+                        ENDIF
+                    ELSE
+                        APPLY_BRAKES_TO_PLAYERS_CAR 0 0
+                    ENDIF
                 ENDIF
                 BREAK
             DEFAULT
 
-                IF fn > 0.0
-                AND fn < 0.25
-                    gas = 255
+                // Zera o contador de afogar quando a velocidade ta saudavel
+                // pra marcha (rolando acima da faixa minima)
+                CLEO_CALL GetGearMinSpeedLimit 0 c gear fMinSpeed
+                fLug = fMinSpeed * fStall
+                IF VehSpeed > 0.05
+                AND VehSpeed >= fLug
+                    timerb = 0
                 ELSE
-                    IF fn > 0.25
-                    AND fn < 0.35
-                        gas = 180
-                    ELSE
-                        IF fn > 0.35
-                        AND fn < 0.65
-                            gas = 80
-                        ELSE
-                            IF fn > 0.65
-                            AND fn < 0.85
-                                gas = 30
-                            ELSE
-                                IF fn > 0.9
-                                    gas = 20
-                                ENDIF
-                            ENDIF
-                        ENDIF
+                    IF VehSpeed < -0.05
+                        timerb = 0
                     ENDIF
                 ENDIF
 
@@ -493,28 +505,38 @@ Transmission:
                 ENDIF
 
                 IF VehSpeed > GearSpeedLimit
-                    IF fn < -0.3
-                        WRITE_MEMORY pointer 2 -200 FALSE
+                    // acima do limite da marcha:
+                    timerb = 0
+                    IF IS_BUTTON_PRESSED 0 16
+                        // corta-giro: corta o gas e deixa o RPM cravado NO
+                        // TALO (o som nao hesita nem volta, igual a vida real)
+                        WRITE_MEMORY pointer 2 0 FALSE
                     ELSE
-                        IF fn < 0.0
-                        AND fn > -0.009
-                            WRITE_MEMORY pointer 2 0 FALSE
+                        IF fn < -0.3
+                            WRITE_MEMORY pointer 2 -200 FALSE
                         ELSE
-                            IF fn < -0.009
-                            AND fn > -0.1
-                                WRITE_MEMORY pointer 2 -20 FALSE
+                            IF fn < 0.0
+                            AND fn > -0.009
+                                WRITE_MEMORY pointer 2 0 FALSE
                             ELSE
-                                IF fn < -0.1
-                                AND fn > -0.25
-                                    WRITE_MEMORY pointer 2 -40 FALSE
+                                IF fn < -0.009
+                                AND fn > -0.1
+                                    WRITE_MEMORY pointer 2 -20 FALSE
                                 ELSE
-                                    WRITE_MEMORY pointer 2 -80 FALSE
+                                    IF fn < -0.1
+                                    AND fn > -0.25
+                                        WRITE_MEMORY pointer 2 -40 FALSE
+                                    ELSE
+                                        WRITE_MEMORY pointer 2 -80 FALSE
+                                    ENDIF
                                 ENDIF
                             ENDIF
                         ENDIF
                     ENDIF
                 ELSE
                     IF IS_BUTTON_PRESSED 0 16
+                        // gas TOTAL: puxa ate o talo sem hesitar
+                        gas = 255
                         SWITCH acc
                             CASE NORMAL
                                 gas -= 0
@@ -545,47 +567,55 @@ Transmission:
                             WRITE_MEMORY pointer 2 400 FALSE
                         ENDIF
 
-                    ELSE
-                        IF fn < 0.45
-                            fn = GearSpeedLimit / 3.0
-                            IF VehSpeed <= fn
-                                gas = 50
-                            ELSE
-                                gas = 0
-                            ENDIF
+                        IF NOT IS_CAR_ENGINE_ON c
+                            WRITE_MEMORY pointer 2 0 FALSE
                         ELSE
-                            IF fn > 0.45
-                            AND fn < 0.65
-                                fn = GearSpeedLimit / 3.0
-                                IF VehSpeed <= fn
-                                    gas = 20
-                                ELSE
-                                    gas = 0
+                            WRITE_MEMORY pointer 2 gas FALSE
+                        ENDIF
+                    ELSE
+                        gas = 0
+                        IF VehSpeed <= 0.05
+                        AND VehSpeed >= -0.05
+                            // PARADO em marcha com embreagem solta e sem gas:
+                            // o motor morre (soltou a embreagem parado)
+                            IF realStart = 1
+                                IF timerb > 600
+                                    GOSUB KillEngine
                                 ENDIF
                             ELSE
-                                IF fn > 0.65
-                                AND fn < 0.75
-                                    fn = GearSpeedLimit / 3.0
-                                    IF VehSpeed <= fn
-                                        gas = 10
-                                    ELSE
-                                        gas = 0
-                                    ENDIF
-                                ELSE
-                                    IF fn > 0.75
+                                gas = 50
+                            ENDIF
+                        ELSE
+                            IF realStart = 1
+                                // rolando mais devagar do que a marcha aguenta:
+                                // o motor labuta e morre (falta velocidade)
+                                IF fLug > 0.05
+                                AND VehSpeed < fLug
+                                    IF timerb > 700
                                         GOSUB KillEngine
                                     ENDIF
+                                ELSE
+                                    IF gear = 1
+                                        fn = GearSpeedLimit / 3.0
+                                        IF VehSpeed <= fn
+                                            gas = 50 // marcha lenta da 1a
+                                        ENDIF
+                                    ENDIF
+                                ENDIF
+                            ELSE
+                                fn = GearSpeedLimit / 3.0
+                                IF VehSpeed <= fn
+                                    gas = 50
                                 ENDIF
                             ENDIF
                         ENDIF
-                    ENDIF
 
-                    IF NOT IS_CAR_ENGINE_ON c
-                        WRITE_MEMORY pointer 2 0 FALSE
-                    ELSE
-                        WRITE_MEMORY pointer 2 gas FALSE
+                        IF NOT IS_CAR_ENGINE_ON c
+                            WRITE_MEMORY pointer 2 0 FALSE
+                        ELSE
+                            WRITE_MEMORY pointer 2 gas FALSE
+                        ENDIF
                     ENDIF
-
                 ENDIF
 
                 IF timera > 1000
@@ -896,6 +926,27 @@ GetCurrentVehicleSpeed:
     READ_MEMORY pointer 4 FALSE mSpeed
 
 CLEO_RETURN 0 mSpeed
+}
+
+{
+// CLEO_CALL GetGearMinSpeedLimit 0 car gear speed
+// Retorna a faixa minima da marcha (tTransmissionGear.fChangeDownVelocity),
+// o mesmo dado que o jogo usa pra saber quando desmultiplicar. Abaixo disso
+// o motor nao tem forca pra puxar a marcha.
+GetGearMinSpeedLimit:
+    LVAR_INT car gear p i
+    LVAR_FLOAT speed
+
+    GET_VEHICLE_POINTER car p
+    p += 0x384 // CVehicle.tHandlingData
+    READ_MEMORY p 4 FALSE p
+    p += 0x2C  // tHandlingData.CTransmission
+    i = 0x0C * gear
+    i += p     // CTransmission.aGears[gear]
+    i += 0x8   // tTransmissionGear.fChangeDownVelocity
+    READ_MEMORY i 4 FALSE speed
+
+CLEO_RETURN 0 speed
 }
 
 {

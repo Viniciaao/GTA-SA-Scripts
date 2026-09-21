@@ -50,8 +50,8 @@ CONTROLS (same as the original mod)
 - Releasing the gas at very low RPM in gear stalls the engine (press E to
   restart).
 
-REALISTIC STARTING (RealisticStart = 1)
----------------------------------------
+REALISTIC STARTING & STALLING (RealisticStart = 1)
+--------------------------------------------------
 Just like real life (works for Soundize audio and vanilla audio alike —
 it is game physics, the sound follows on its own):
 
@@ -63,16 +63,22 @@ it is game physics, the sound follows on its own):
   stays on.
 - Dead engine in NEUTRAL + E: the engine just starts and stays on.
 - Dead engine ROLLING in gear (from ~7 km/h) + E: bump start!
-- On a hill the lurch can roll the car fast enough for it to catch. This
-  emerges naturally from the system, just like real life.
+- Releasing the clutch while STOPPED in gear without gas: the engine
+  stalls after ~0.5 s (like dumping the clutch in real life).
+- Too slow for the gear (e.g., braking down to 5 km/h still in 4th and
+  releasing everything): the engine LUGS and stalls after ~0.7 s.
+  Downshift or press the clutch! Tunable via StallSpeedFactor (0 = off).
+- Full throttle in any gear now pulls cleanly TO THE REDLINE: the RPM
+  pins at the gear limit with a rev-limiter buzz (ShiftThreshold 0.97)
+  instead of hesitating/cutting early. No auto-upshift, ever.
+- Revving with the clutch pressed now makes SOUND: the engine revs while
+  the brakes hold the car in place (neutral/burnout style rev).
 
-Note: after starting with the clutch held in gear, releasing it without
-gas makes the car creep slowly (the original mod's idle) instead of
-stalling — kept that way so GTA hills stay playable.
-
-Old behavior, for comparison: E only worked while holding the clutch, and
-starting in gear kept the engine on (and the car even crept by itself).
-Set RealisticStart = 0 to go back to that.
+Old behavior, for comparison: E only worked while holding the clutch,
+starting in gear kept the engine on, the throttle feed was cut early
+before the shift point (sound "stuttering" near the top) and revving
+with the clutch pressed did nothing. Set RealisticStart = 0 and
+ShiftThreshold = 0.8 to go back to that.
 
 
 WHAT CHANGED VS THE ORIGINAL MOD
