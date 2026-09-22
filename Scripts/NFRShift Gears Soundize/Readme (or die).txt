@@ -81,15 +81,22 @@ it is game physics, the sound follows on its own):
 
 HIGH-GEAR LAUNCH (Soundize users, read this)
 --------------------------------------------
-Starting from a standstill in a high gear (e.g., 5th) no longer makes the
-car accelerate normally while the Soundize sound runs through its gears
-on its own. Out of the gear's speed window the engine now lugs (weak
-acceleration, like real life), and releasing the throttle stalls it.
-Technical note: Soundize derives the played gear from SPEED (its API has
-no gear setter), so while speed climbs through the lower gears' windows
-the sound follows them; as soon as speed enters your gear's window the
-sound locks to your gear. A "Ext_SetVehicleGear" request to Junior_Djjr
-would solve this on the Soundize side.
+PROPERLY FIXED. Soundize uses the GAME's gears and doesn't change the
+game physics (per the author, Djjr) — so the script now writes the
+selected gear into the game's real gear field (CVehicle.m_nCurrentGear,
++0x4B4) every frame, with the shift counter (+0x4B8) zeroed. Result:
+
+- Launching from standstill in 5th: the GAME physics actually runs in
+  5th (weak high-gear acceleration, like real life) and the sound plays
+  low-RPM 5th — no self-upshifting, because the game's gear IS yours.
+- Releasing the throttle in that condition: the engine stalls from lack
+  of speed.
+- At cruise, the rev limiter (ShiftThreshold 0.97) still stops the game
+  from upshifting beyond your gear.
+
+(With WriteGearToGame = 0 in the .ini you get an old fallback that only
+limited the throttle outside the gear's window — without the same
+effect on sound.)
 
 Old behavior, for comparison: E only worked while holding the clutch,
 starting in gear kept the engine on, the throttle feed was cut early

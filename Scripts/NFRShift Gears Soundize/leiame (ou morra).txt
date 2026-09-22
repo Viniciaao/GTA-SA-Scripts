@@ -98,16 +98,21 @@ quem sobe é você.
 
 MARCHA ALTA PARADO (sair parado na 5ª, por exemplo)
 ---------------------------------------------------
-Antes (bug desde o mod original): sair parado numa marcha alta fazia o
-carro acelerar normal enquanto o som do Soundize passava as marchas
-sozinho. Agora: fora da faixa da marcha o motor fica AFOGANDO (aceleração
-fraca, como na vida real) — e se soltar o acelerador, o motor morre por
-falta de velocidade. Importante saber: o Soundize calcula a marcha do som
-pela VELOCIDADE (a API dele não tem como o script "cravar" a marcha), então
-enquanto a velocidade sobe pelas faixas das marchas mais baixas o som
-acompanha elas; no momento que a velocidade entra na faixa da SUA marcha,
-o som trava nela. Pra pedir um setter de marcha pra uma versão futura,
-mapeia esse feedback pro Junior_Djjr (Ext_SetVehicleGear).
+RESOLVIDO DE VERDADE. O Soundize usa as marchas do jogo e não muda a
+física (palavra do Djjr) — então o script agora escreve a sua marcha na
+marcha REAL do jogo (CVehicle.m_nCurrentGear, +0x4B4) todo frame, junto
+com o contador de troca zerado (+0x4B8). Resultado:
+
+- Largando parado na 5ª: a FÍSICA do jogo passa a funcionar em 5ª mesmo
+  (aceleração fraca de marcha alta, como na vida real) e o som toca na
+  5ª baixa — sem passar marchas sozinho, porque a marcha do jogo É a sua.
+- Soltando o acelerador nessa condição: o motor morre por falta de
+  velocidade.
+- No cruzeiro, o corte-giro (ShiftThreshold 0.97) continua impedindo o
+  jogo de subir de marcha além da sua.
+
+(Com WriteGearToGame = 0 no .ini volta um fallback antigo que só limitava
+o gás fora da faixa da marcha — sem o mesmo efeito no som.)
 
 PASSAR MARCHA SEM FREAR
 -----------------------

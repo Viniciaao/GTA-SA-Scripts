@@ -23,17 +23,21 @@ NOP
        "Soundize (Junior_Djjr).asi" (Ext_IsVehicleUsingAnyBank,
        Ext_GetVehicleRPM, Ext_GetVehicleMaxRPM, Ext_GetVehicleGear).
 
-    2. O Soundize calcula o RPM/marcha dele a partir da velocidade do carro
-       e das janelas de marcha da handling (aGears da transmissao). Entao o
-       cambio manual controla o carro sem brigar com o som:
-         - O acelerador e cortado progressivamente antes do ponto de troca
-           de marcha natural do carro (aGears[gear].fChangeUpVelocity x
-           ShiftThreshold). Com o RPM segurado abaixo do ponto de troca, o
-           Soundize NAO sobe de marcha sozinho: quem manda e o jogador.
-         - A marcha escolhida tambem e escrita no byte de marcha da entidade
-           de audio do jogo (CAEVehicleAudioEntity+0xAA), igual o mod
-           original fazia; se o Soundize ler o audio do jogo, ele segue a
-           marcha cravada (opcao WriteGearToAudio).
+    2. O Soundize USA AS MARCHAS DO JOGO e nao muda a fisica (palavra do
+       autor, Djjr). Entao o cambio manual manda no jogo, e o som segue:
+         - A marcha escolhida e ESCRITA NO PROPRIO JOGO
+           (CVehicle+0x4B4, m_nCurrentGear) todo frame, junto do contador de
+           troca (CVehicle+0x4B8) zerado. Fisica e som passam a seguir o
+           cambio manual: largada parado na 5a tem a fisica fraca de 5a e o
+           som toca na 5a baixa, sem passar marchas sozinho
+           (opcao WriteGearToGame).
+         - O acelerador e cortado no corte-giro (aGears[gear]
+           .fChangeUpVelocity x ShiftThreshold 0.97): a velocidade nunca
+           cruza o ponto de troca, entao nem o jogo nem o som sobem de
+           marcha sozinhos: quem sobe e o jogador.
+         - A marcha tambem e escrita no byte de marcha da entidade de audio
+           do jogo (CAEVehicleAudioEntity+0xAA), igual o mod original fazia
+           (opcao WriteGearToAudio) - cobre o som vanilla e o neutral/re.
          - Nos carros SEM som do Soundize (banco nativo), o comportamento do
            mod original e mantido (SwitchCarGearAudio + efeito de suspensao).
 
@@ -116,7 +120,7 @@ NOP
 
 // ============================ VARIAVEIS ============================
 LVAR_INT scplayer iCar pVeh iSubclass gear pGasPedal clutchKey
-LVAR_INT fps_set iniGearHelper iniNoAnim iniShowRPM iniGearLimitMode iniRealStart clutchRevSim
+LVAR_INT fps_set iniGearHelper iniNoAnim iniShowRPM iniGearLimitMode iniRealStart clutchRevSim iniWriteGearGame
 LVAR_INT sndEnabled sndWriteGear iniInhibitVanillaFx
 LVAR_INT sndLoaded pSoundize pIsBank pGetRPM pGetMaxRPM pGetGear
 LVAR_FLOAT mouseX mouseY gear_posX gear_posY gear_pointer fThresh
@@ -185,6 +189,11 @@ LOAD_SPRITE 7 "tail2"
         WRITE_INT_TO_INI_FILE 1 "cleo/NFRShift Gears Soundize.ini" "Soundize" "InhibitShiftFxVanilla"
     ENDIF
 
+    // NOVO: escrever a marcha no proprio jogo (fisica + som seguem o cambio)
+    IF NOT READ_INT_FROM_INI_FILE "cleo/NFRShift Gears Soundize.ini" "Soundize" "WriteGearToGame" iniWriteGearGame
+        WRITE_INT_TO_INI_FILE 1 "cleo/NFRShift Gears Soundize.ini" "Soundize" "WriteGearToGame"
+    ENDIF
+
     // NOVO: rev com embreagem pisada (parado), simulado pela velocidade
     // interna da transmissao (sem freio, sem o carro andar)
     IF NOT READ_INT_FROM_INI_FILE "cleo/NFRShift Gears Soundize.ini" "config" "ClutchRevSim" clutchRevSim
@@ -245,7 +254,7 @@ WHILE TRUE
             pGasPedal += 0x20
 
             // Trava aqui dirigindo (aplica os limites de marcha) ate pisar na embreagem
-            CLEO_CALL Transmission 0 iCar gear pVeh fThresh iniGearLimitMode sndLoaded pIsBank sndWriteGear iniInhibitVanillaFx iniGearHelper pGetRPM pGetMaxRPM pGetGear iniShowRPM iniRealStart
+            CLEO_CALL Transmission 0 iCar gear pVeh fThresh iniGearLimitMode sndLoaded pIsBank sndWriteGear iniInhibitVanillaFx iniGearHelper pGetRPM pGetMaxRPM pGetGear iniShowRPM iniRealStart iniWriteGearGame
 
             IF IS_KEY_PRESSED clutchKey // Embreagem
                 SET_CAMERA_CONTROL FALSE
@@ -381,7 +390,7 @@ WHILE TRUE
                 SET_CAMERA_CONTROL TRUE
 
                 IF IS_CHAR_SITTING_IN_ANY_CAR scplayer
-                    CLEO_CALL Transmission 0 iCar gear pVeh fThresh iniGearLimitMode sndLoaded pIsBank sndWriteGear iniInhibitVanillaFx iniGearHelper pGetRPM pGetMaxRPM pGetGear iniShowRPM iniRealStart
+                    CLEO_CALL Transmission 0 iCar gear pVeh fThresh iniGearLimitMode sndLoaded pIsBank sndWriteGear iniInhibitVanillaFx iniGearHelper pGetRPM pGetMaxRPM pGetGear iniShowRPM iniRealStart iniWriteGearGame
                 ENDIF
 
             ENDIF
@@ -394,7 +403,7 @@ ENDWHILE
 
 
 {
-// CLEO_CALL Transmission 0 car gear pVeh fThresh limitMode sndLoaded pIsBank sndWriteGear inhibitFx showHelper pGetRPM pGetMaxRPM pGetGear showRPM realStart
+// CLEO_CALL Transmission 0 car gear pVeh fThresh limitMode sndLoaded pIsBank sndWriteGear inhibitFx showHelper pGetRPM pGetMaxRPM pGetGear showRPM realStart writeGearGame
 //
 // Laco principal de dirigibilidade com a marcha engatada. Roda preso aqui
 // enquanto o jogador nao pisar na embreagem. Controla o acelerador de acordo
@@ -405,10 +414,10 @@ ENDWHILE
 Transmission:
     LVAR_INT car gear pVeh
     LVAR_FLOAT fThresh
-    LVAR_INT limitMode sndLoaded pIsBank sndWriteGear inhibitFx showHelper pGetRPM pGetMaxRPM pGetGear showRPM realStart
+    LVAR_INT limitMode sndLoaded pIsBank sndWriteGear inhibitFx showHelper pGetRPM pGetMaxRPM pGetGear showRPM realStart iniWriteGearGame
     LVAR_INT player c maxGears pointer clutch gas acc first sndBank stallFlag
-    LVAR_FLOAT GearSpeedLimit VehSpeed MaxVehSpeed fn
-    LVAR_FLOAT fMinSpeed fLug fStall
+    LVAR_FLOAT GearSpeedLimit VehSpeed fn
+    LVAR_FLOAT fLug fStall
 
     CONST_INT LOWEST 2
     CONST_INT LOW 1
@@ -416,7 +425,6 @@ Transmission:
 
     GET_PLAYER_CHAR 0 player
     GET_CAR_CHAR_IS_USING player c
-    CLEO_CALL GetVehicleMaxSpeed 0 c MaxVehSpeed
 
     GET_CAR_NUMBER_OF_GEARS c maxGears
 
@@ -453,7 +461,7 @@ Transmission:
         WAIT 0
 
         CLEO_CALL GetCurrentVehicleSpeed 0 c VehSpeed
-        CLEO_CALL GetGearSpeedLimit 0 c gear maxGears MaxVehSpeed fThresh limitMode GearSpeedLimit
+        CLEO_CALL GetGearSpeedLimit 0 c gear maxGears fThresh limitMode GearSpeedLimit
 
         fn = VehSpeed - GearSpeedLimit
         fn *= -1.0
@@ -481,9 +489,8 @@ Transmission:
             DEFAULT
 
                 // Zera o contador de afogar quando a velocidade ta saudavel
-                // pra marcha (rolando acima da faixa minima)
-                CLEO_CALL GetGearMinSpeedLimit 0 c gear fMinSpeed
-                fLug = fMinSpeed * fStall
+                // pra marcha (rolando acima da faixa minima x fator)
+                CLEO_CALL GetGearMinSpeedLimit 0 c gear fStall fLug
                 IF VehSpeed > 0.05
                 AND VehSpeed >= fLug
                     timerb = 0
@@ -504,6 +511,14 @@ Transmission:
                         CLEO_CALL InhibitChangeGearsEffect 0 c
                     ENDIF
                     CLEO_CALL SwitchCarGearAudio 0 c gear
+                ENDIF
+
+                // A parte mais importante: ESCREVER a marcha no proprio jogo
+                // (CVehicle.m_nCurrentGear). O Soundize usa as marchas do
+                // jogo e nao muda a fisica - entao fisica e som seguem o
+                // cambio manual, inclusive largada parado em marcha alta.
+                IF iniWriteGearGame = 1
+                    CLEO_CALL WriteGearToGame 0 pVeh gear maxGears
                 ENDIF
 
                 IF VehSpeed > GearSpeedLimit
@@ -569,17 +584,11 @@ Transmission:
                             WRITE_MEMORY pointer 2 400 FALSE
                         ENDIF
 
-                        // Marcha fora da faixa (muito devagar pra essa
-                        // marcha): motor afogando, aceleracao fraca. Sair
-                        // PARADO numa marcha alta (ex.: 5a) nao empurra o
-                        // carro mais; assim o som so acompanha as trocas
-                        // enquanto a velocidade sobe pelas faixas, e trava
-                        // na sua marcha quando entra na faixa dela.
+                        // FALLBACK (WriteGearToGame = 0): marcha fora da
+                        // faixa, motor afogando, aceleracao fraca
                         IF gear >= 2
                         AND gear <= 6
-                            CLEO_CALL GetGearMinSpeedLimit 0 c gear fMinSpeed
-                            fMinSpeed += 0.5
-                            IF VehSpeed < fMinSpeed
+                            IF VehSpeed < fLug
                                 IF gas > 45
                                     gas = 45
                                 ENDIF
@@ -842,14 +851,39 @@ CLEO_RETURN 0
     RETURN
 }
 
-{// CLEO_CALL GetGearSpeedLimit 0 car gear maxGears maxVehSpeed fThresh limitMode limit
+{
+// CLEO_CALL WriteGearToGame 0 pVeh gear maxGears
 //
-// Limite de velocidade (m/s) da marcha escolhida, ja multiplicado pelo
+// Escreve a marcha escolhida na marcha REAL do veiculo
+// (CVehicle+0x4B4, m_nCurrentGear) e zera o contador de troca
+// (CVehicle+0x4B8, m_fGearChangeCount) pra o jogo nao desistir da marcha
+// por conta propria. A fisica do jogo usa essa marcha, e o Soundize usa as
+// marchas do jogo - entao fisica e som seguem o cambio manual.
+WriteGearToGame:
+    LVAR_INT pVeh gear maxGears p n
+
+    IF gear >= 1
+    AND gear <= maxGears
+        p = pVeh + 0x4B4 // CVehicle.m_nCurrentGear
+        READ_MEMORY p 1 FALSE n
+        IF NOT n = gear
+            WRITE_MEMORY p 1 gear FALSE
+        ENDIF
+        p = pVeh + 0x4B8 // CVehicle.m_fGearChangeCount
+        WRITE_MEMORY p 4 0.0 FALSE
+    ENDIF
+
+CLEO_RETURN 0
+}
+
+{// CLEO_CALL GetGearSpeedLimit 0 car gear maxGears fThresh limitMode limit
+//
+// Limite de velocidade da marcha escolhida, ja multiplicado pelo
 // ShiftThreshold. E esse limite que segura o RPM abaixo do ponto de troca,
-// impedindo o Soundize (e o audio vanilla) de subir de marcha sozinho.
+// impedindo o jogo (e o som, que usa as marchas do jogo) de subir de marcha.
 GetGearSpeedLimit:
     LVAR_INT car gear maxGears
-    LVAR_FLOAT maxVehSpeed fThresh
+    LVAR_FLOAT fThresh
     LVAR_INT limitMode p i
     LVAR_FLOAT limit tmp
 
@@ -862,11 +896,22 @@ GetGearSpeedLimit:
 
     IF gear <= 0
     OR gear = 7
-        limit = maxVehSpeed
+        GET_VEHICLE_POINTER car p
+        p += 0x384 // CVehicle.tHandlingData
+        READ_MEMORY p 4 FALSE p
+        p += 0x2C  // tHandlingData.CTransmission
+        p += 0x58  // CTransmission.fMaxGearVelocity
+        READ_MEMORY p 4 FALSE limit
     ELSE
         IF limitMode = 1 // proporcional ao numero de marchas (estilo antigo)
+            GET_VEHICLE_POINTER car p
+            p += 0x384 // CVehicle.tHandlingData
+            READ_MEMORY p 4 FALSE p
+            p += 0x2C  // tHandlingData.CTransmission
+            p += 0x58  // CTransmission.fMaxGearVelocity
+            READ_MEMORY p 4 FALSE limit
             tmp =# maxGears
-            limit = maxVehSpeed / tmp
+            limit /= tmp
             tmp =# gear
             limit *= tmp
             limit *= fThresh
@@ -892,7 +937,12 @@ GetGearSpeedLimit:
                         limit = GEAR6_LIMIT / 3.6
                         BREAK
                     DEFAULT
-                        limit = maxVehSpeed
+                        GET_VEHICLE_POINTER car p
+                        p += 0x384 // CVehicle.tHandlingData
+                        READ_MEMORY p 4 FALSE p
+                        p += 0x2C  // tHandlingData.CTransmission
+                        p += 0x58  // CTransmission.fMaxGearVelocity
+                        READ_MEMORY p 4 FALSE limit
                         BREAK
                 ENDSWITCH
                 limit *= fThresh
@@ -911,23 +961,6 @@ GetGearSpeedLimit:
     ENDIF
 
 CLEO_RETURN 0 limit
-}
-
-{
-// CLEO_CALL GetVehicleMaxSpeed 0 car maxSpeed
-GetVehicleMaxSpeed:
-    LVAR_INT car
-    LVAR_INT pointer
-    LVAR_FLOAT mSpeed
-
-    GET_VEHICLE_POINTER car pointer
-    pointer += 0x384 //pHandlingData
-    READ_MEMORY pointer 4 FALSE pointer
-    pointer += 0x2C //CTransmission
-    pointer += 0x58 //fMaxGearVelocity
-    READ_MEMORY pointer 4 FALSE mSpeed
-
-CLEO_RETURN 0 mSpeed
 }
 
 {
@@ -996,12 +1029,15 @@ CLEO_RETURN 0
 }
 
 {
-// CLEO_CALL GetGearMinSpeedLimit 0 car gear speed
+// CLEO_CALL GetGearMinSpeedLimit 0 car gear factor speed
 // Retorna a faixa minima da marcha (tTransmissionGear.fChangeDownVelocity),
-// o mesmo dado que o jogo usa pra saber quando desmultiplicar. Abaixo disso
-// o motor nao tem forca pra puxar a marcha.
+// o mesmo dado que o jogo usa pra saber quando desmultiplicar, ja
+// multiplicada pelo fator (StallSpeedFactor). Abaixo disso o motor nao tem
+// forca pra puxar a marcha.
 GetGearMinSpeedLimit:
-    LVAR_INT car gear p i
+    LVAR_INT car gear
+    LVAR_FLOAT factor
+    LVAR_INT p i
     LVAR_FLOAT speed
 
     GET_VEHICLE_POINTER car p
@@ -1012,6 +1048,7 @@ GetGearMinSpeedLimit:
     i += p     // CTransmission.aGears[gear]
     i += 0x8   // tTransmissionGear.fChangeDownVelocity
     READ_MEMORY i 4 FALSE speed
+    speed *= factor
 
 CLEO_RETURN 0 speed
 }
