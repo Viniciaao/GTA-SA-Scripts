@@ -124,6 +124,11 @@ O `.cs` da v1.1 que está neste repositório:
 37051 bytes   SHA-256 6af889f20b6503f3244435f1e6199c3236280ec5119437b934038c5f379532fd
 ```
 
+Também testamos com o binário da **release 0.9.7** (o `.exe` da página de
+releases, que é o caminho mais fácil no Windows): os dois arquivos saem com
+**exatamente os mesmos bytes/hashes** — ou seja, dá pra usar o `gta3sc.exe`
+pronto, não precisa compilar o compilador.
+
 ## 6. Detalhe da linguagem que mordeu a gente
 
 Em gta3script cada **expressão aceita uma única operação**. Isto é erro de
