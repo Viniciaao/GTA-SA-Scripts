@@ -40,6 +40,13 @@ NOP
            (opcao WriteGearToAudio) - cobre o som vanilla e o neutral/re.
          - Nos carros SEM som do Soundize (banco nativo), o comportamento do
            mod original e mantido (SwitchCarGearAudio + efeito de suspensao).
+         - Embreagem "patinando": em velocidade abaixo da faixa da marcha,
+           carros POTENTES (fEngineAcceleration >= PowerSlipMinAccel) deixam
+           o jogo reduzir pra 1a sozinho (efeito de embreagem patinando,
+           com gas limitado) - entao conseguem sair de marchas altas; carros
+           fracos ficam lutando na marcha e o motor MORRE.
+         - Abuso de partida realista: cada tranco falhado (ligar em marcha
+           sem embreagem) causa dano leve no motor (StarterDamage).
 
     3. HUD: o GearHelper mostra a marcha selecionada, a marcha que o SOM
        esta tocando (API do Soundize quando houver banco ativo, senao a
@@ -415,7 +422,7 @@ Transmission:
     LVAR_INT car gear pVeh
     LVAR_FLOAT fThresh
     LVAR_INT limitMode sndLoaded pIsBank sndWriteGear inhibitFx showHelper pGetRPM pGetMaxRPM pGetGear showRPM realStart iniWriteGearGame
-    LVAR_INT player c maxGears pointer clutch gas acc first sndBank stallFlag
+    LVAR_INT player c maxGears pointer clutch gas acc first sndBank stallFlag slipped
     LVAR_FLOAT GearSpeedLimit VehSpeed fn
     LVAR_FLOAT fLug fStall
 
@@ -502,15 +509,17 @@ Transmission:
 
                 GET_CAR_NUMBER_OF_GEARS c maxGears
 
-                IF sndBank = 1
-                    IF sndWriteGear = 1
+                IF slipped = 0 // embreagem patinando deixa o audio seguir o jogo
+                    IF sndBank = 1
+                        IF sndWriteGear = 1
+                            CLEO_CALL SwitchCarGearAudio 0 c gear
+                        ENDIF
+                    ELSE
+                        IF inhibitFx = 1
+                            CLEO_CALL InhibitChangeGearsEffect 0 c
+                        ENDIF
                         CLEO_CALL SwitchCarGearAudio 0 c gear
                     ENDIF
-                ELSE
-                    IF inhibitFx = 1
-                        CLEO_CALL InhibitChangeGearsEffect 0 c
-                    ENDIF
-                    CLEO_CALL SwitchCarGearAudio 0 c gear
                 ENDIF
 
                 // A parte mais importante: ESCREVER a marcha no proprio jogo
@@ -518,7 +527,7 @@ Transmission:
                 // jogo e nao muda a fisica - entao fisica e som seguem o
                 // cambio manual, inclusive largada parado em marcha alta.
                 IF iniWriteGearGame = 1
-                    CLEO_CALL WriteGearToGame 0 pVeh gear maxGears
+                    CLEO_CALL WriteGearToGame 0 pVeh gear maxGears fStall slipped
                 ENDIF
 
                 IF VehSpeed > GearSpeedLimit
@@ -584,9 +593,16 @@ Transmission:
                             WRITE_MEMORY pointer 2 400 FALSE
                         ENDIF
 
+                        // Embreagem patinando: saida mais fraca (meio gas)
+                        IF slipped = 1
+                        AND gas > 160
+                            gas = 160
+                        ENDIF
+
                         // FALLBACK (WriteGearToGame = 0): marcha fora da
                         // faixa, motor afogando, aceleracao fraca
-                        IF gear >= 2
+                        IF slipped = 0
+                        AND gear >= 2
                         AND gear <= 6
                             IF VehSpeed < fLug
                                 IF gas > 45
@@ -599,6 +615,18 @@ Transmission:
                             WRITE_MEMORY pointer 2 0 FALSE
                         ELSE
                             WRITE_MEMORY pointer 2 gas FALSE
+                        ENDIF
+
+                        // Carro fraco lutando fora da faixa da marcha (sem
+                        // embreagem pra patinar): o motor nao aguenta e morre
+                        IF slipped = 0
+                        AND gear >= 2
+                        AND gear <= 6
+                            IF VehSpeed < fLug
+                                IF timerb > 1000
+                                    GOSUB KillEngine
+                                ENDIF
+                            ENDIF
                         ENDIF
                     ELSE
                         gas = 0
@@ -740,6 +768,19 @@ Transmission:
                         WRITE_MEMORY pointer 2 0 FALSE
                         SET_CAR_ENGINE_ON c 0
                         PRINT_HELP MMSG5 //Afogou! Poe em ponto morto ou pisa na embreagem pra ligar
+                        // abuso de partida (tranco falhado): dano leve no motor
+                        IF NOT READ_FLOAT_FROM_INI_FILE "cleo/NFRShift Gears Soundize.ini" "config" "StarterDamage" VehSpeed
+                            WRITE_FLOAT_TO_INI_FILE 6.0 "cleo/NFRShift Gears Soundize.ini" "config" "StarterDamage"
+                        ENDIF
+                        IF VehSpeed > 0.0
+                            stallFlag = pVeh + 0x4C0 // CVehicle.m_fHealth
+                            READ_MEMORY stallFlag 4 FALSE fLug
+                            fLug -= VehSpeed
+                            IF fLug < 251.0
+                                fLug = 251.0 // nao deixa pegar fogo so por abuso de partida
+                            ENDIF
+                            WRITE_MEMORY stallFlag 4 fLug FALSE
+                        ENDIF
                     ENDIF
                 ENDIF
             ENDIF
@@ -852,28 +893,89 @@ CLEO_RETURN 0
 }
 
 {
-// CLEO_CALL WriteGearToGame 0 pVeh gear maxGears
+// CLEO_CALL WriteGearToGame 0 pVeh gear maxGears fStall slipped
 //
 // Escreve a marcha escolhida na marcha REAL do veiculo
 // (CVehicle+0x4B4, m_nCurrentGear) e zera o contador de troca
 // (CVehicle+0x4B8, m_fGearChangeCount) pra o jogo nao desistir da marcha
 // por conta propria. A fisica do jogo usa essa marcha, e o Soundize usa as
 // marchas do jogo - entao fisica e som seguem o cambio manual.
+//
+// EMBREAGEM PATINANDO: abaixo da faixa da marcha (fChangeDown x fStall x
+// forca do motor), carros POTENTES nao tem a marcha cravada: o jogo reduz
+// pra 1a sozinho (comportamento vanilla), que e o efeito de embreagem
+// patinando - eles conseguem sair parado em marchas altas. Carros FRACOS
+// tem a marcha cravada mesmo assim: ficam lutando e o motor morre.
+// Retorna slipped = 1 quando deixou o jogo "patinar" a embreagem.
 WriteGearToGame:
-    LVAR_INT pVeh gear maxGears p n
+    LVAR_INT pVeh gear maxGears
+    LVAR_FLOAT fStall
+    LVAR_INT p n
+    LVAR_FLOAT fCD fAcc fSpd fMinAcc
+    LVAR_INT slipped
+
+    slipped = 0
 
     IF gear >= 1
     AND gear <= maxGears
-        p = pVeh + 0x4B4 // CVehicle.m_nCurrentGear
-        READ_MEMORY p 1 FALSE n
-        IF NOT n = gear
-            WRITE_MEMORY p 1 gear FALSE
+        p = pVeh + 0x384 // CVehicle.tHandlingData
+        READ_MEMORY p 4 FALSE p
+        p += 0x2C // tHandlingData.CTransmission
+
+        n = 0x0C * gear
+        n += p    // CTransmission.aGears[gear]
+        n += 0x8  // tTransmissionGear.fChangeDownVelocity
+        READ_MEMORY n 4 FALSE fCD
+
+        n = p + 0x50 // cTransmission.m_fEngineAcceleration
+        READ_MEMORY n 4 FALSE fAcc
+
+        n = p + 0x64 // cTransmission.m_fCurrentSpeed
+        READ_MEMORY n 4 FALSE fSpd
+
+        // fCD = faixa minima da marcha x fator x escala de forca do motor
+        fCD *= fStall
+        fAcc *= -0.075
+        fAcc += 1.25
+        IF fAcc < 0.35
+            fAcc = 0.35
         ENDIF
-        p = pVeh + 0x4B8 // CVehicle.m_fGearChangeCount
-        WRITE_MEMORY p 4 0.0 FALSE
+        fCD *= fAcc
+
+        IF fSpd >= fCD
+            // dentro da faixa: crava a marcha do jogador
+            p = pVeh + 0x4B4 // CVehicle.m_nCurrentGear
+            READ_MEMORY p 1 FALSE n
+            IF NOT n = gear
+                WRITE_MEMORY p 1 gear FALSE
+            ENDIF
+            p = pVeh + 0x4B8 // CVehicle.m_fGearChangeCount
+            WRITE_MEMORY p 4 0.0 FALSE
+        ELSE
+            // fora da faixa (devagar demais pra essa marcha)
+            IF NOT READ_FLOAT_FROM_INI_FILE "cleo/NFRShift Gears Soundize.ini" "config" "PowerSlipMinAccel" fMinAcc
+                WRITE_FLOAT_TO_INI_FILE 5.5 "cleo/NFRShift Gears Soundize.ini" "config" "PowerSlipMinAccel"
+            ENDIF
+            // recupera o accel bruto a partir da escala (scale = 1.25 - acc*0.075)
+            fAcc -= 1.25
+            fAcc *= -13.3333
+            IF fAcc >= fMinAcc
+                // potente: deixa o jogo reduzir pra 1a (embreagem patinando)
+                slipped = 1
+            ELSE
+                // fraco: crava a marcha mesmo assim (luta e morre)
+                p = pVeh + 0x4B4 // CVehicle.m_nCurrentGear
+                READ_MEMORY p 1 FALSE n
+                IF NOT n = gear
+                    WRITE_MEMORY p 1 gear FALSE
+                ENDIF
+                p = pVeh + 0x4B8 // CVehicle.m_fGearChangeCount
+                WRITE_MEMORY p 4 0.0 FALSE
+            ENDIF
+        ENDIF
     ENDIF
 
-CLEO_RETURN 0
+CLEO_RETURN 0 slipped
 }
 
 {// CLEO_CALL GetGearSpeedLimit 0 car gear maxGears fThresh limitMode limit
@@ -1037,8 +1139,8 @@ CLEO_RETURN 0
 GetGearMinSpeedLimit:
     LVAR_INT car gear
     LVAR_FLOAT factor
-    LVAR_INT p i
-    LVAR_FLOAT speed
+    LVAR_INT p i n
+    LVAR_FLOAT speed fAcc
 
     GET_VEHICLE_POINTER car p
     p += 0x384 // CVehicle.tHandlingData
@@ -1049,6 +1151,15 @@ GetGearMinSpeedLimit:
     i += 0x8   // tTransmissionGear.fChangeDownVelocity
     READ_MEMORY i 4 FALSE speed
     speed *= factor
+    // escala de forca do motor: potente labuta menos antes de morrer
+    n = p + 0x50 // cTransmission.m_fEngineAcceleration
+    READ_MEMORY n 4 FALSE fAcc
+    fAcc *= -0.075
+    fAcc += 1.25
+    IF fAcc < 0.35
+        fAcc = 0.35
+    ENDIF
+    speed *= fAcc
 
 CLEO_RETURN 0 speed
 }

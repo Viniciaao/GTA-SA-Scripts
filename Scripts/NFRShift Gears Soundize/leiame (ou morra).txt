@@ -111,8 +111,34 @@ com o contador de troca zerado (+0x4B8). Resultado:
 - No cruzeiro, o corte-giro (ShiftThreshold 0.97) continua impedindo o
   jogo de subir de marcha além da sua.
 
-(Com WriteGearToGame = 0 no .ini volta um fallback antigo que só limitava
-o gás fora da faixa da marcha — sem o mesmo efeito no som.)
+EMBREAGEM PATINANDO (PowerSlipMinAccel)
+---------------------------------------
+Sair parado numa marcha alta depende da FORÇA do motor (fEngineAcceleration
+da handling), como na vida real:
+
+- Carros potentes (Elegy, supercars): embaixo da faixa da marcha o script
+  deixa o jogo reduzir pra 1ª sozinho — é o efeito de "embreagem patinan-
+  do": o carro SAI (mais fraco, com meio gás), o som gira baixo tipo
+  embreagem queimando, e quando a velocidade entra na faixa da sua marcha
+  ela é cravada de novo.
+- Carros velhos/fracos: a marcha fica cravada mesmo assim — o carro luta,
+  não sai, e o motor MORRE depois de ~1s acelerando ou soltando o gás.
+- Ajuste no .ini: PowerSlipMinAccel (padrão 5.5; maior = só os muito
+  fortes patinam; 9999 = nenhum patina).
+
+DANO POR ABUSO DA PARTIDA (StarterDamage)
+-----------------------------------------
+Cada tranco de partida FALHADO (ligar em marcha sem embreagem e afogar)
+causa dano leve no motor (padrão 6.0 de vida, que vai de 1000 a 250).
+Forçando muito, o motor começa a soltar fumaça — igual na vida real, quem
+fica girando o motor de arranque estraga o carro. 0 no .ini desativa.
+O dano nunca derruba a vida abaixo do limite de pega-fogo por si só.
+
+HUD
+---
+Os textos usam o formato GXT do jogo (marcador de número ~1~). Se aparecer
+"%i" literal na tela, o arquivo NFRShift Gears Soundize.fxt não está
+instalado em CLEO/CLEO_TEXT (ou está uma versão velha).
 
 PASSAR MARCHA SEM FREAR
 -----------------------
