@@ -1,0 +1,231 @@
+============================================================================
+NFRSHIFT GEARS SOUNDIZE
+câmbio manual pro GTA SA — recriação do NFRShift Gears Mod
+adaptado pro Soundize (e com opção pra desativar a animação de pular marcha)
+============================================================================
+
+O QUE É ISSO?
+-------------
+A recriação do câmbio manual (NFRShift Gears Mod) reconstruída em cima do
+sistema de som do Soundize, do Junior_Djjr:
+
+    https://www.mixmods.com.br/2026/06/soundize/
+
+A ideia: o Soundize já tem todo o sistema de som e RPM realista (marchas,
+corte de acelerador na troca, backfire, turbo, som de interior etc), então
+este câmbio manual controla as marchas SEM brigar com o som — e ainda lê o
+RPM/marcha reais do Soundize pra mostrar no HUD.
+
+E tem a opção nova `DisableShiftAnim`: desliga a animação de "pular marcha"
+(aquele TASK_PLAY_ANIM changegear do braço do CJ) pra ficar redondo com mods
+de animação de motorista como o **VEHIK do zzpuma**, que já anima a mão no
+câmbio sozinho.
+
+INSTALAÇÃO
+----------
+Requer: CLEO 4.4.4+ (ou CLEO 5), CLEO+, e de preferência o Soundize
+(sem Soundize o câmbio funciona do mesmo jeito, só com o áudio vanilla).
+
+Copie pra pasta do jogo:
+
+    cleo/NFRShift Gears Soundize.cs        <- o script (compilado)
+    cleo/NFRShift Gears Soundize.ini       <- configuração
+    cleo/CLEO_TEXT/NFRShift Gears Soundize.fxt  <- textos do HUD
+
+Do mod original você também precisa (se já usa o NFRShift, já tem tudo):
+
+    cleo/gbox.txd                          <- texturas do painel (gearbox,
+                                              gear, gcenter, gup, gdown,
+                                              tail, tail2)
+    cleo/NFR Shift Gear/gears_sound/       <- OPCIONAL: 1.mp3 2.mp3 3.mp3
+                                              4.mp3 5.mp3 gas.mp3 (som de
+                                              engate da alavanca)
+
+Se usa ModLoader, pode jogar tudo numa pasta dentro de modloader/ também.
+
+COMO USA (igual ao mod original)
+--------------------------------
+- Motos/quadriciclos trocam marchas com botão esquerdo (sobe) e direito
+  (desce) do mouse.
+- Carros: segure a embreagem (Shift esquerdo por padrão) que o painel da
+  alavanca em H aparece. Mova a alavanca com o mouse:
+      1  3  5      - posição do meio = ponto morto (N)
+     2  4  R       - R = ré (também engata segurando o botão Circle/analógico
+                      direito no ponto morto)
+- Toque rápido na embreagem (<50 ms) não entra no câmbio manual.
+- Se soltar o acelerador com o motor muito lento na marcha, o motor morre
+  (aparece o aviso; segura E pra ligar de novo).
+- Ctrl esquerdo com acelerador = over-rev (o mod original deixa, mantive).
+
+PARTIDA REALISTA (RealisticStart = 1)
+-------------------------------------
+Como na vida real (vale pro som do Soundize e pro som do jogo — é física
+do próprio jogo, o som acompanha sozinho):
+
+- Carro morto, PARADO EM MARCHA, apertar E (sem embreagem):
+  o motor gira, o carro dá o TRANCO com a força dele próprio (na ré, o
+  tranco é pra trás) e o motor MORRE em meio segundo ("Afogou!").
+  Segurando E, o tranco repete, igual quem fica girando a chave.
+- Pisar a embreagem DURANTE o tranco salva o engate: o motor pega e fica
+  ligado.
+- Carro morto em PONTO MORTO + E: o motor fica ligado, sem tranco.
+- Carro morto ROLANDO em marcha (a partir de ~7 km/h) + E:
+  pega no tranco sozinho (bump start / "pegar no empurrão").
+- Na ladeira o tranco pode embalar o carro o suficiente pra ele pegar.
+  É emergente do próprio sistema, do jeito que a vida real faz.
+
+MORTE DE MOTOR (também RealisticStart = 1)
+------------------------------------------
+- Soltou a embreagem com o carro PARADO em marcha e sem acelerar?
+  O motor morre depois de meio segundo — igual soltar a embreagem na
+  vida real. Pra ficar parado sem morrer: ponto morto ou embreagem
+  pisada.
+- Faltou velocidade pra marcha (ex.: freiou até 5 km/h ainda no 4 e
+  soltou tudo)? O motor LABUTA e morre em ~0,7 s. Reduza a marcha ou pise
+  a embreagem! O fator é ajustável no StallSpeedFactor (0 = desativa).
+- Acelerar no 4 parado contra a parede também mata o motor depois de um
+  tempo (emborrachou a embreagem). Largada se faz em 1ª :)
+- Rolando devagar em 1ª sem acelerar o carro continua engatinhando na
+  marcha lenta (marcha lenta de 1ª, como no carro real).
+
+TALO / CORTE-GIRO (ShiftThreshold = 0.97)
+-----------------------------------------
+Acelerando em qualquer marcha o carro agora puxa ATÉ O TALO: o RPM sobe
+liso até o limite da marcha e fica CRAVADO nele (corta-giro, igual na
+vida real), em vez de hesitar/cortar antes e o som ficar pipocando.
+O carro não sobe de marcha sozinho porque nunca cruza o ponto de troca —
+quem sobe é você.
+
+MARCHA ALTA PARADO (sair parado na 5ª, por exemplo)
+---------------------------------------------------
+RESOLVIDO DE VERDADE. O Soundize usa as marchas do jogo e não muda a
+física (palavra do Djjr) — então o script agora escreve a sua marcha na
+marcha REAL do jogo (CVehicle.m_nCurrentGear, +0x4B4) todo frame, junto
+com o contador de troca zerado (+0x4B8). Resultado:
+
+- Largando parado na 5ª: a FÍSICA do jogo passa a funcionar em 5ª mesmo
+  (aceleração fraca de marcha alta, como na vida real) e o som toca na
+  5ª baixa — sem passar marchas sozinho, porque a marcha do jogo É a sua.
+- Soltando o acelerador nessa condição: o motor morre por falta de
+  velocidade.
+- No cruzeiro, o corte-giro (ShiftThreshold 0.97) continua impedindo o
+  jogo de subir de marcha além da sua.
+
+SAIR PARADO EM MARCHA ALTA
+--------------------------
+A sua marcha fica CRAVADA o tempo todo (física e som). Sair parado na 2ª
+ou 3ª: a física fraca da marcha alta segura o carro — a largada sai lenta
+e arrastada, e o som gira BAIXO na sua marcha (afogando), sem o jogo passar
+pra 1ª sozinho. Carros potentes conseguem arrancar assim; carros fracos
+lutam e o motor MORRE (potentes aguentam mais tempo labutando, pela força
+do motor da handling). Soltar o gás nessa condição também mata.
+
+DANO POR ABUSO DA PARTIDA (StarterDamage)
+-----------------------------------------
+Cada tranco de partida FALHADO (ligar em marcha sem embreagem e afogar)
+causa dano leve no motor (padrão 6.0 de vida, que vai de 1000 a 250).
+Forçando muito, o motor começa a soltar fumaça — igual na vida real, quem
+fica girando o motor de arranque estraga o carro. 0 no .ini desativa.
+O dano nunca derruba a vida abaixo do limite de pega-fogo por si só.
+
+HUD
+---
+Os textos usam o formato GXT do jogo (marcador de número ~1~). Se aparecer
+"%i" literal na tela, o arquivo NFRShift Gears Soundize.fxt não está
+instalado em CLEO/CLEO_TEXT (ou está uma versão velha).
+
+PASSAR MARCHA SEM FREAR
+-----------------------
+Corrigido: com a embreagem pisada o script não aplica mais freio nenhum —
+o carro desacelera só de arrasto, como apertar a embreagem de verdade.
+(Em versões anteriores, acelerar com a embreagem pisada acionava freio.)
+
+RE DE VERDADE (ClutchRevSim = 1)
+--------------------------------
+Acelerar PARADO — no ponto morto ou com a embreagem pisada — agora faz o
+motor SUBIR DE GIRO RAPIDO até o talo, sem as rodas girarem, como na vida
+real. O gás real chega no motor (mesmo caminho do "freio de mão +
+acelerar" do jogo, que o Soundize acompanha por usar as marchas/estado do
+jogo) e um freio interno segura o carro no lugar enquanto você está
+parado. Em movimento, a embreagem só desacopla: sem freio nenhum, o carro
+desacelera de arrasto ao passar marcha.
+
+
+
+O QUE MUDOU EM RELAÇÃO AO MOD ORIGINAL
+--------------------------------------
+1. INTEGRAÇÃO SOUNDIZE (seção [Soundize] do .ini):
+   - O script pega a API oficial do Soundize (Ext_GetVehicleRPM,
+     Ext_GetVehicleMaxRPM, Ext_GetVehicleGear, Ext_IsVehicleUsingAnyBank).
+   - Enquanto o carro toca um banco de som do Soundize:
+       * O HUD mostra a marcha do SOM (não só a marcha do câmbio) e a barra
+         de RPM em tempo real no pé da tela.
+       * O acelerador é cortado progressivamente em 80% da velocidade máxima
+         da marcha engatada (ShiftThreshold). Como o Soundize calcula o RPM
+         pela velocidade, segurar a velocidade abaixo do ponto de troca faz
+         o Soundize NUNCA subir de marcha sozinho — quem manda na marcha é
+         você, e o som/RPM continuam realistas.
+       * A marcha escolhida também é cravada no byte de marcha da entidade
+         de áudio do jogo (WriteGearToAudio) — se o Soundize considerar o
+         estado de áudio do jogo, ele segue a marcha cravada na hora.
+   - Em carros SEM banco do Soundize (áudio nativo), o comportamento é o do
+     mod original (SwitchCarGearAudio no byte +0xAA da audio entity).
+
+2. GearLimitMode novo: por padrão o limite de cada marcha agora usa a janela
+   de marcha da PRÓPRIA handling do carro (aGears.fChangeUpVelocity) — o
+   mesmo dado que o jogo e o Soundize usam pra calcular marcha. Então carro
+   de 3 marchas tem limite de 3 marchas, carro preparado de 6 tem 6, tudo
+   automático. Os modos antigos continuam disponíveis (1 = proporcional,
+   2 = tabela fixa de km/h do original).
+
+3. DisableShiftAnim (pro VEHIK): 1 = o script não carrega nem toca a
+   animação changegear. O resto (sons de engate, painel, tudo) continua
+   igual. Se você NÃO usa VehIK e gosta da animação, bota 0.
+
+4. ShowRPMBar: barra de RPM de verdade (API do Soundize) com cores
+   verde/laranja/vermelho conforme o RPM, e marca visual de ~75%/90%.
+
+5. Organização geral: INI própria (cleo/NFRShift Gears Soundize.ini), textos
+   próprios (.fxt incluso), sem código morto, e comentado.
+
+AJUSTE FINO COM O SOUNDIZE
+--------------------------
+- O Soundize tem a opção RPMmode no .ini dele (0 = esportivo, sobe de marcha
+  mais tarde; 1 = normal, sobe mais cedo). Se com RPMmode=1 o carro ainda
+  subir de marcha sozinho antes do corte, baixe o ShiftThreshold pra 0.7.
+- Se a marcha ficar sem força antes do corte (carro "morrendo" cedo),
+  suba o ShiftThreshold pra 0.85.
+- A linha laranja do HUD ("Som: X") mostra a marcha que o SOM está tocando.
+  Ela deve ser igual à marcha que você engatou. Se diferenciar, é sinal de
+  que o carro subiu de marcha sozinho — ajuste o ShiftThreshold.
+
+COMPILAÇÃO (pra quem mexe no código)
+------------------------------------
+Fonte: Scripts/NFRShift Gears Soundize/CLEO/NFRShift Gears Soundize.txt
+Compilado com gta3sc (dialeto GTA3script):
+
+    gta3sc compile "NFRShift Gears Soundize.txt" --config=gtasa ^
+        --guesser -fbreak-continue --cs -o "NFRShift Gears Soundize.cs"
+
+Precisa de CLEO+ no jogo por causa dos comandos 0x0E12 (GET_VEHICLE_SUBCLASS),
+0x0E60 (SET_CAMERA_CONTROL) e 0x0EFE (GET_LOADED_LIBRARY).
+
+Detalhe: esta versão usa SET_TEXT_EDGE com 5 argumentos (assinatura oficial
+do SA, opcode 081C) — o script antigo usava 4.
+
+ARQUIVOS
+--------
+    CLEO/NFRShift Gears Soundize.cs    script compilado
+    CLEO/NFRShift Gears Soundize.txt   fonte
+    CLEO/NFRShift Gears Soundize.sc    cópia do fonte
+    CLEO/NFRShift Gears Soundize.ini   configuração
+    CLEO/NFRShift Gears Soundize.fxt   textos (colocar em CLEO/CLEO_TEXT)
+
+CRÉDITOS
+--------
+- NFRShift Gears Mod — base desta recriação
+- Junior_Djjr — Soundize (sistema de som, RPM realista e API pública)
+- zzpuma — VehIK (o motivo da opção DisableShiftAnim existir)
+- chrystianfarias — engenharia de som do Soundize
+
+Não se esquece: se curti o Soundize, apoia o Patreon do Junior_Djjr.

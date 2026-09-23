@@ -1,0 +1,7 @@
+MMSG1 O motor morreu! Poe em ~y~ponto morto~w~ (ou pisa na ~y~embreagem~w~) e segura ~y~E~w~ pra ligar
+MMSG2 Marcha: ~y~~1~~w~/~y~~1~
+MMSG3 Marcha: ~y~R~w~ (carro de ~1~ marchas)
+MMSG4 Som: ~r~~1~
+MMSG5 Afogou! O carro deu o tranco e morreu. ~y~Ponto morto~w~ ou ~y~embreagem~w~ pra ligar
+SNDSOFF ~r~Soundize nao instalado.~w~ Cambio manual em modo de audio vanilla.
+SNDSOLD ~r~Soundize desatualizado!~w~ Atualiza o mod pra usar a API nova.
