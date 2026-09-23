@@ -1,4 +1,4 @@
-# Visual Path Editor — correções no salvamento (v1.0 → v1.1)
+# Visual Path Editor — correções no salvamento (v1.0 → v1.1) e nos crashes (v1.2)
 
 Este documento lista o que estava errado na gravação dos `nodes*.dat` da versão
 1.0 do mod, como cada problema foi comprovado e o que mudou.
@@ -8,6 +8,10 @@ A referência do formato está em [`PATHS-FORMAT.md`](PATHS-FORMAT.md).
 > seção de flags de interseção e 192 bytes no fim das seções 6 e 7), todos os
 > nodes desciam 0,25 m a cada salvamento, links inválidos eram gravados sem
 > nenhum aviso e o arquivo de destino era truncado antes de qualquer checagem.
+>
+> E o crash relatado ao carregar o jogo **era o próprio mod**: um
+> `DELETE_LIST` triplicado e um ponteiro de `nodesN.dat` lido/gravado com
+> 16 bytes de deslocamento (seção 11 — v1.2).
 
 ---
 
@@ -229,7 +233,7 @@ size += iz
 ```
 
 Com isso, o compile sai **limpo (zero erros e zero avisos)** e o `.cs` gerado
-está nesta pasta: `VisualPathEditor.cs` (37.051 bytes).
+está nesta pasta: `VisualPathEditor.cs` (37.614 bytes na v1.2).
 
 **Validação do toolchain:** compilando o source **original 1.0** com a mesma
 receita, o `.cs` sai **byte a byte igual** ao `VisualPathEditor.cs` que o autor
@@ -240,6 +244,148 @@ v1.1 vem só destas correções.
 A receita completa (compilador, a `cleo.xml` do CLEO+ 1.0.7 que é obrigatória,
 as flags e os atalhos pra Windows/VSCode) está em [`BUILD.md`](BUILD.md), e
 automatizada em [`tools/build.sh`](tools/build.sh).
+
+---
+
+## 11. Os dois bugs de memória que faziam o jogo crashar (v1.1 → v1.2)
+
+O relato foi: **o jogo crashava dentro do `CLEO.asi`, com um "invalid free" no
+heap, ao carregar o jogo com o mod instalado**. Não era o `.txd` nem "o mod
+conflitando com outro `.cleo`": eram dois ponteiros usados errado dentro do
+próprio mod. Os dois estão no mesmo lugar do código (`lists:` e as variáveis
+`list`/`as`/`temporary`), e os dois só aparecem quando há **mais de uma área
+carregada** — ou seja, no uso normal, e por isso o mod "funcionava".
+
+### 11.1 `DELETE_LIST` três vezes no mesmo ponteiro (double/triple free)
+
+Em `deleteObjects` (roda ao fechar o menu, ao salvar e ao descarregar) as três
+listas da área eram buscadas com **o mesmo índice de tipo**:
+
+```gta3script
+CLEO_CALL getListPointer 0 (0 ix) (list) //ObjectList
+READ_MEMORY list 4 0 list
+...
+DELETE_LIST list
+
+CLEO_CALL getListPointer 0 (0 ix) (list) //NodeList   <- tipo errado (0)
+READ_MEMORY list 4 0 list
+DELETE_LIST list                                       <- mesmo ponteiro!
+
+CLEO_CALL getListPointer 0 (0 ix) (list) //NaviList   <- tipo errado (0)
+READ_MEMORY list 4 0 list
+DELETE_LIST list                                       <- mesmo ponteiro!
+```
+
+Como o slot lido é sempre o mesmo (`tipo 0`, índice `ix`), o `DELETE_LIST`
+recebia **o mesmo ponteiro três vezes**. No CLEO+ o `DELETE_LIST` é literalmente
+
+```cpp
+// CLEOPlus/List.cpp
+ScriptList *scriptList = (ScriptList*)CLEO_GetIntOpcodeParam(thread);
+if (scriptList) { ...; delete scriptList; }   // sem validar nada
+```
+
+ou seja, é `delete` no mesmo bloco três vezes → **free list do heap corrompida**.
+Depois disso, o crash aparece em qualquer lugar que aloque/libere memória — não
+necessariamente no mod. É a explicação mais provável de um "invalid free dentro
+do `CLEO.asi` chamado por outro `.cleo`": o heap já estava corrompido, e quem
+tocou nele depois levou a culpa.
+
+De quebra, as listas de nodes e de navis **nunca eram liberadas** (vazavam).
+
+**Correção** (v1.2): usa os tipos certos (`0` = ObjectList, `1` = NodeList,
+`2` = NaviList), só chama `DELETE_LIST` em ponteiro `> 0` e **zera o slot logo
+depois** de liberar (para nenhum código futuro reutilizar ponteiro morto).
+
+### 11.2 O sub-script lia/gravava 16 bytes depois do slot (falta de `READ_MEMORY`)
+
+No sub-script de manipulação, ao **criar ou apagar um link** (tecla Insert ou
+Delete), o código fazia:
+
+```gta3script
+GET_THREAD_VAR mainscript 4 (as)        // as = curfile (indice da area) - certo
+CLEO_CALL getListPointer 0 (3 as) (as)  // as = ENDERECO do slot do FileList
+READ_STRUCT_OFFSET as 16 4 (ns)         // <-- lendo 16 bytes DEPOIS do slot
+ns -= 1
+WRITE_STRUCT_OFFSET as 16 4 (ns)        // <-- gravando lixo 16 bytes DEPOIS
+```
+
+Faltava o `READ_MEMORY` (o mesmo erro que já existia antes do `GET_THREAD_VAR`,
+que era outra coisa): o `as` continuava sendo o **endereço do slot** na tabela
+`lists`, não o **ponteiro do buffer** do `nodesN.dat`. A tabela `lists` é
+
+```
+tipo 0..7  ->  36 bytes por tipo (9 slots de 4 bytes cada)
+tipo 3 = FileList  ->  os 9 slots guardam os PONTEIROS dos buffers
+```
+
+Então `as + 16` cai **no slot do ponteiro de outro arquivo** (índice `curfile+4`
+do mesmo tipo, ou já na linha de contadores do tipo 4). O resultado: um dos
+buffers de `nodesN.dat` ficava com o ponteiro somado/subtraído de 1 e, no
+descarregamento, o `FREE_MEMORY` liberava esse ponteiro inválido (interior
+pointer) → **"invalid free" dentro do heap do CLEO**, exatamente o crash
+relatado.
+
+**Correção** (v1.2):
+
+```gta3script
+GET_THREAD_VAR mainscript 4 (as)
+CLEO_CALL getListPointer 0 (3 as) (as)
+READ_MEMORY as 4 0 (as)                 // as = ponteiro do buffer
+IF as > 0                               // nada carregado nesse slot = nao faz nada
+    READ_STRUCT_OFFSET as 16 4 (ns)
+    ns -= 1
+    WRITE_STRUCT_OFFSET as 16 4 (ns)
+ENDIF
+```
+
+### 11.3 `unloadFiles` liberava ponteiro errado/duplicado
+
+Os nove slots de arquivo eram liberados sem checar se estavam carregados e
+**sem zerar o slot**. Se uma área não carregasse (arquivo ausente, borda do mapa
+— `-1` na `loadedregions` —, ou a máscara de áreas mudando enquanto o jogador
+anda), o slot continuava com o ponteiro da sessão anterior, **já liberado**, e o
+`FREE_MEMORY` liberava o mesmo bloco duas vezes. Agora só libera o que é `> 0` e
+zera o slot na hora de liberar.
+
+### 11.4 Robustez no mesmo estilo (ponteiro que podia estar zerado)
+
+* `ALLOCATE_MEMORY` podia falhar e o mod seguia **gravando no endereço 0**;
+  agora checa e aborta o carregamento da área (com mensagem).
+* `updateCounts` lia o cabeçalho do arquivo mesmo com o slot vazio (depois de
+  um save, por exemplo) → leitura no endereço 0; agora zera as contagens.
+* `GET_LIST_SIZE`/`DELETE_LIST` nos slots que nunca foram criados (o
+  `deleteObjects` seguinte ao save percorre todos os 9 slots, incluindo os que
+  não existem na máscara) → `ScriptList* == 0`; agora tudo tem `IF list > 0`.
+* Se a criação dos scripts internos falhasse, o mod fazia `SET_THREAD_VAR` num
+  ponteiro `0` (o CLEO+ grava `((CScriptThread*)t)->tls[var]` sem checar); agora
+  mostra o erro e termina.
+
+> **Sobre `SET_THREAD_VAR`/`GET_THREAD_VAR`** (para quem for mexer no source):
+> o índice desses opcodes é a **variável `34 + índice`** do outro script, na
+> ordem em que elas foram declaradas. O mod depende disso (`GET_THREAD_VAR
+> mainscript 4` = `curfile` do script principal; `SET_THREAD_VAR
+> manipulationScript 21` = `active` do sub-script; `SET_THREAD_VAR visualScript
+> 11` = `mainscript` do sub-script visual...). **Não reordene nem insira
+> `LVAR_INT`/`LVAR_FLOAT` no meio das declarações dos blocos** — só no fim de
+> cada lista, ou os índices trocam e o mod passa a escrever na variável errada.
+
+## 12. Como conferir que esses bugs não voltaram
+
+O `tools/check_script.py` (que roda sem instalar nada) ganhou duas checagens
+novas, e hoje passa com **0 erros**:
+
+```bash
+python3 tools/check_script.py VisualPathEditor.sc
+```
+
+* `READ_STRUCT_OFFSET` / `WRITE_STRUCT_OFFSET` usando uma variável que veio de
+  `getListPointer(0..3, ...)` **sem** `READ_MEMORY` antes → erro (é o bug 11.2);
+* `DELETE_LIST` duas vezes no mesmo ponteiro (mesmo `getListPointer(tipo, n)`)
+  → erro (é o bug 11.1).
+
+Rodando no source da v1.1 ele acusa exatamente as quatro linhas culpadas
+(`855`, `859`, `2189`, `2353`); no source da v1.2, nenhuma.
 
 ## Como compilar e instalar
 
@@ -287,3 +433,13 @@ heurística diferente de 0x7FFE.
 * Formato fastman92 (FLA paths) não é suportado — veja `PATHS-FORMAT.md` §7.
 * O jogo original não relê um `nodesN.dat` enquanto a área está na memória:
   depois de salvar, recarregue/unload no mod e reimporte o arquivo no IMG.
+* As listas dos links (5 por node, guardadas nas *extended vars* do objeto) não
+  são liberadas ao descarregar as áreas: o CLEO+ só as devolve no restart do
+  jogo (`ClearScriptLists`). É vazamento pequeno e sem risco de crash (uma lista
+  por node, uns 60 bytes), mas quem editar muitos nodes numa sessão longa vai
+  ver a memória subir.
+* Se o CLEO+ limpar as listas (restart/load do jogo) com o editor aberto, os
+  ponteiros salvos pelo mod viram inválidos - é uma particularidade do CLEO+,
+  não tem como o script detectar. Na prática o script reinicia junto com o jogo
+  (as variáveis voltam ao estado inicial), então basta abrir o editor de novo
+  (tecla `U`) depois de carregar um save.

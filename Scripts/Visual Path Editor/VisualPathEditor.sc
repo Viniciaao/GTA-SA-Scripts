@@ -46,8 +46,18 @@ GET_PLAYER_CHAR 0 scplayer
 STREAM_CUSTOM_SCRIPT_FROM_LABEL visualEditor 0
 GET_LAST_CREATED_CUSTOM_SCRIPT visualScript
 
+IF visualScript = 0
+    PRINT_STRING_NOW "~r~Visual Path Editor: nao foi possivel criar os scripts internos" 6000
+    TERMINATE_THIS_CUSTOM_SCRIPT
+ENDIF
+
 STREAM_CUSTOM_SCRIPT_FROM_LABEL manipulationEditor 0
 GET_LAST_CREATED_CUSTOM_SCRIPT manipulationScript
+
+IF manipulationScript = 0
+    PRINT_STRING_NOW "~r~Visual Path Editor: nao foi possivel criar os scripts internos" 6000
+    TERMINATE_THIS_CUSTOM_SCRIPT
+ENDIF
 
 SET_THREAD_VAR visualScript 11 number //Pointer pra ca
 SET_THREAD_VAR visualScript 9 manipulationScript //Pointer pro Manipulator
@@ -441,6 +451,13 @@ GOTO main
         CLEO_CALL getListPointer 0 (3 curfile) (list) //FileList
         ALLOCATE_MEMORY number filememory //Escreve nos endereços de memória para arquivos
 
+        IF filememory = 0
+            PRINT_FORMATTED_NOW "~r~nodes%i.dat: sem memoria para carregar o arquivo (%i bytes)" 6000 region number
+            CLOSE_FILE file
+            GOSUB loadFailed
+            RETURN
+        ENDIF
+
         //Copia todo o arquivo pra memória
         iz = 0
         number = temporary
@@ -502,11 +519,21 @@ GOTO main
     RETURN
 
     unloadFiles:
-        REPEAT 9 count
+        //Libera somente o que esta de fato carregado e zera o slot na hora de
+        //liberar. Era aqui o double free: se uma area nao carregasse (arquivo
+        //ausente, borda do mapa, troca de mascara de areas enquanto o jogador
+        //anda), o slot continuava com o ponteiro da sessao anterior - ja
+        //liberado - e o FREE_MEMORY liberava o mesmo bloco duas vezes.
+        count = 0
+        WHILE count < 9
             CLEO_CALL getListPointer 0 (3 count) (temporary)
             READ_MEMORY temporary 4 0 (number)
-            FREE_MEMORY number
-        ENDREPEAT
+            IF number > 0
+                FREE_MEMORY number
+                WRITE_MEMORY temporary 4 (0) 0
+            ENDIF
+            count += 1
+        ENDWHILE
 
         loaded = FALSE
         SET_THREAD_VAR manipulationScript 21 loaded
@@ -515,6 +542,17 @@ GOTO main
     updateCounts:
         CLEO_CALL getListPointer 0 (3 curfile) (list) //FileList
         READ_MEMORY list 4 0 filememory
+
+        //Sem arquivo carregado nesse slot (borda do mapa, arquivo ausente,
+        //depois do save) nao da' pra ler o cabecalho: era leitura no
+        //endereco 0
+        IF filememory = 0
+            nodeCount = 0
+            vehNodeCount = 0
+            naviCount = 0
+            linkCount = 0
+            RETURN
+        ENDIF
 
         //Pega as variáveis do cabeçalho
         READ_STRUCT_OFFSET filememory 0 4 (nodeCount)
@@ -829,17 +867,27 @@ GOTO main
         REPEAT 9 ix
             GET_LIST_VALUE_BY_INDEX loadedregions ix temporary
             IF NOT temporary = -1
-                CLEO_CALL getListPointer 0 (0 ix) (list) //ObjectList
-                READ_MEMORY list 4 0 list
-                GET_LIST_SIZE list number
-                count = 0
-                WHILE count < number
-                    GET_LIST_VALUE_BY_INDEX list count (object)
-                    IF DOES_OBJECT_EXIST object
-                        DELETE_OBJECT object
-                    ENDIF
-                    count += 1
-                ENDWHILE
+                //---------- ObjectList ----------
+                //"temporary" guarda o ENDERECO do slot, pra zerar depois de
+                //liberar. Os tres blocos usavam o tipo 0 (ObjectList): o
+                //DELETE_LIST era feito 3x no MESMO ponteiro (double/triple free
+                //= heap corrompido) e as listas de nodes/navis vazavam.
+                CLEO_CALL getListPointer 0 (0 ix) (temporary)
+                READ_MEMORY temporary 4 0 (list)
+                IF list > 0
+                    GET_LIST_SIZE list number
+                    count = 0
+                    WHILE count < number
+                        GET_LIST_VALUE_BY_INDEX list count (object)
+                        IF DOES_OBJECT_EXIST object
+                            DELETE_OBJECT object
+                        ENDIF
+                        count += 1
+                    ENDWHILE
+
+                    DELETE_LIST list
+                    WRITE_MEMORY temporary 4 (0) 0
+                ENDIF
 
                 SET_THREAD_VAR visualScript 8 (0) //Diz q não tem object
                 SET_THREAD_VAR manipulationScript 14 (0)
@@ -847,22 +895,32 @@ GOTO main
                 IF DOES_OBJECT_EXIST curobject
                     DELETE_OBJECT curobject
                 ENDIF
+                curobject = -1
 
-                DELETE_LIST list
+                //---------- NodeList ----------
+                CLEO_CALL getListPointer 0 (1 ix) (temporary)
+                READ_MEMORY temporary 4 0 (list)
+                IF list > 0
+                    DELETE_LIST list
+                    WRITE_MEMORY temporary 4 (0) 0
+                ENDIF
 
-                CLEO_CALL getListPointer 0 (0 ix) (list) //NodeList
-                READ_MEMORY list 4 0 list
-                DELETE_LIST list
-
-                CLEO_CALL getListPointer 0 (0 ix) (list) //NaviList
-                READ_MEMORY list 4 0 list
-                DELETE_LIST list
+                //---------- NaviList ----------
+                CLEO_CALL getListPointer 0 (2 ix) (temporary)
+                READ_MEMORY temporary 4 0 (list)
+                IF list > 0
+                    DELETE_LIST list
+                    WRITE_MEMORY temporary 4 (0) 0
+                ENDIF
             ENDIF
         ENDREPEAT
 
         GET_LABEL_POINTER interregion iy
-        READ_MEMORY iy 4 0 (temporary) //Interregion List
-        DELETE_LIST temporary
+        READ_MEMORY iy 4 0 (list) //Interregion List
+        IF list > 0
+            DELETE_LIST list
+            WRITE_MEMORY iy 4 (0) 0
+        ENDIF
 
         SET_THREAD_VAR manipulationScript 7 0 //Loading
     RETURN
@@ -2184,11 +2242,19 @@ SCRIPT_END
                             SET_EXTENDED_OBJECT_VAR object VPEV 8 links
                             SET_THREAD_VAR visualScript 4 links
 
+                            //"as" tem que virar o PONTEIRO do buffer do arquivo
+                            //(READ_MEMORY). Sem isso o codigo lia e gravava 16
+                            //bytes depois do slot, corrompendo o ponteiro do
+                            //buffer de OUTRO arquivo - e o FREE_MEMORY do unload
+                            //liberava esse ponteiro torto = crash no heap
                             GET_THREAD_VAR mainscript 4 (as)
                             CLEO_CALL getListPointer 0 (3 as) (as)
-                            READ_STRUCT_OFFSET as 16 4 (ns)
-                            ns -= 1
-                            WRITE_STRUCT_OFFSET as 16 4 (ns)
+                            READ_MEMORY as 4 0 (as)
+                            IF as > 0
+                                READ_STRUCT_OFFSET as 16 4 (ns)
+                                ns -= 1
+                                WRITE_STRUCT_OFFSET as 16 4 (ns)
+                            ENDIF
                             
                             count += 1
                         ENDIF
@@ -2350,9 +2416,12 @@ SCRIPT_END
 
                             GET_THREAD_VAR mainscript 4 (as)
                             CLEO_CALL getListPointer 0 (3 as) (as)
-                            READ_STRUCT_OFFSET as 16 4 (ns)
-                            ns += 1
-                            WRITE_STRUCT_OFFSET as 16 4 (ns)
+                            READ_MEMORY as 4 0 (as)
+                            IF as > 0
+                                READ_STRUCT_OFFSET as 16 4 (ns)
+                                ns += 1
+                                WRITE_STRUCT_OFFSET as 16 4 (ns)
+                            ENDIF
                         ENDIF
 
                         count += 1

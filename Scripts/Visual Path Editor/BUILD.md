@@ -115,10 +115,17 @@ com esta mesma receita: o `.cs` gerado sai **byte a byte igual** ao
 ```
 
 Foi assim que este toolchain foi validado. Se o seu gta3sc + `cleo.xml`
-reproduzem esse arquivo, então qualquer diferença no `.cs` da v1.1 vem
+reproduzem esse arquivo, então qualquer diferença no `.cs` da v1.2 vem
 só das correções do `CORRECOES.md`.
 
-O `.cs` da v1.1 que está neste repositório:
+O `.cs` que está neste repositório (v1.2 — as correções de crash da seção 11
+do `CORRECOES.md`):
+
+```
+37614 bytes   SHA-256 e43181e7f8d9cf6cb59480b0d372e1ee8de2f25dfe052226d9fae580e983217c
+```
+
+Era este o da v1.1 (antes das correções de memória):
 
 ```
 37051 bytes   SHA-256 6af889f20b6503f3244435f1e6199c3236280ec5119437b934038c5f379532fd

@@ -273,8 +273,11 @@ faltando, o jogo lê lixo.
   (`validar`, `info`, `comparar`, `criar-simples`).
 * `tools/tests.py` — testes do validador e demonstração dos bugs da versão 1.0.
 * `tools/check_script.py` — pré-checagem estática do `.sc` (blocos, labels,
-  variáveis, limite de 32 locais e a regra de uma operação por expressão do
-  gta3script) — roda sem instalar nada, mas **não substitui** o compilador.
+  variáveis, limite de 32 locais, a regra de uma operação por expressão do
+  gta3script e as duas armadilhas de ponteiro que causavam crash: `READ`/
+  `WRITE_STRUCT_OFFSET` no *endereço* de um slot de `getListPointer` e
+  `DELETE_LIST` repetido no mesmo ponteiro) — roda sem instalar nada, mas
+  **não substitui** o compilador.
 * `tools/build.sh` + `BUILD.md` — compilam de verdade o `.sc` com o **gta3sc**
   (linguagem gta3script, não Sanny Builder) e geram o `.cs`.
 
