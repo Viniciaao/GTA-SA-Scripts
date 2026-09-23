@@ -73,9 +73,9 @@ NOP
                                          (0.97 = vai NO TALO igual na vida
                                          real; o RPM fica cravado no limite
                                          em vez de hesitar/cortar antes)
-    - [config] ClutchRevSim ............ acelerar com a embreagem pisada
-                                         (parado) simula o motor girando,
-                                         SEM freio e sem o carro andar
+    - Acelerar PARADO (ponto morto ou embreagem pisada) = rev de verdade:
+      o gas real chega no motor e o carro fica segurado no lugar - o RPM
+      sobe rapido ate o talo, sem as rodas girarem (nativo, Soundize ok)
     - Sair PARADO numa marcha alta (ex.: 5a) agora sai fraco/afogando, em
       vez de acelerar normal enquanto o som passa as marchas sozinho
     - [config] StallSpeedFactor ........ 0.5: se a velocidade cair abaixo de
@@ -297,11 +297,23 @@ WHILE TRUE
                             BREAK
                         ENDIF
 
-                        // Embreagem pisada de verdade: sem gas pro cambio
-                        // (o carro desacelera so de arrasto, SEM freio) e o
-                        // rev simulado faz o motor girar quando acelera parado
-                        WRITE_MEMORY pGasPedal 2 0 FALSE
-                        CLEO_CALL ClutchRevSim 0 iCar fThresh clutchRevSim
+                        // Embreagem pisada: desacopla o motor. PARADO,
+                        // acelerar da um rev DE VERDADE (gas real no motor +
+                        // carro segurado no lugar); em movimento so desacopla
+                        // (o carro desacelera so de arrasto, SEM freio)
+                        IF IS_BUTTON_PRESSED 0 16
+                            IF IS_CAR_STOPPED iCar
+                                WRITE_MEMORY pGasPedal 2 255 FALSE
+                                APPLY_BRAKES_TO_PLAYERS_CAR 0 1
+                                CLEO_CALL ClutchRevSim 0 iCar fThresh clutchRevSim
+                            ELSE
+                                WRITE_MEMORY pGasPedal 2 0 FALSE
+                                APPLY_BRAKES_TO_PLAYERS_CAR 0 0
+                            ENDIF
+                        ELSE
+                            WRITE_MEMORY pGasPedal 2 0 FALSE
+                            APPLY_BRAKES_TO_PLAYERS_CAR 0 0
+                        ENDIF
 
                         IF IS_KEY_PRESSED VK_KEY_E
                             SET_CAR_ENGINE_ON iCar 1
@@ -481,21 +493,35 @@ Transmission:
 
         SWITCH gear
             CASE 0
-                // rev no ponto morto: simula o motor girando (a velocidade
-                // interna da transmissao sobe; o pedal real continua zero)
-                CLEO_CALL ClutchRevSim 0 c fThresh clutchRevSim
+                IF VehSpeed > 0.05
+                OR VehSpeed < -0.05
+                    // em movimento: neutro so desacopla (sem gas, sem freio)
+                    IF IS_BUTTON_PRESSED 0 16
+                        WRITE_MEMORY pointer 2 0 FALSE
+                    ENDIF
 
-                IF IS_BUTTON_PRESSED 0 16
-                    WRITE_MEMORY pointer 2 0 FALSE
-                ENDIF
-
-                IF IS_BUTTON_PRESSED 0 14
-                    IF VehSpeed < 0.0
-                    OR IS_CAR_STOPPED c
-                        APPLY_BRAKES_TO_PLAYERS_CAR 0 1
+                    IF IS_BUTTON_PRESSED 0 14
+                        IF VehSpeed < 0.0
+                        OR IS_CAR_STOPPED c
+                            APPLY_BRAKES_TO_PLAYERS_CAR 0 1
+                        ENDIF
+                    ELSE
+                        APPLY_BRAKES_TO_PLAYERS_CAR 0 0
                     ENDIF
                 ELSE
-                    APPLY_BRAKES_TO_PLAYERS_CAR 0 0
+                    // PARADO: acelerar no ponto morto = rev DE VERDADE. O gas
+                    // real chega no motor e o carro e segurado parado - a
+                    // transmissao gira o RPM nativamente (mesmo caminho do
+                    // "freio de mao + acelerar" do vanilla, que o Soundize
+                    // acompanha por usar as marchas/estado do jogo)
+                    IF IS_BUTTON_PRESSED 0 16
+                        WRITE_MEMORY pointer 2 255 FALSE
+                        APPLY_BRAKES_TO_PLAYERS_CAR 0 1
+                        CLEO_CALL ClutchRevSim 0 c fThresh clutchRevSim
+                    ELSE
+                        WRITE_MEMORY pointer 2 0 FALSE
+                        APPLY_BRAKES_TO_PLAYERS_CAR 0 0
+                    ENDIF
                 ENDIF
                 BREAK
             DEFAULT
@@ -1053,13 +1079,15 @@ ClutchRevSim:
         AND fCur > -0.6
             IF enabled = 1
             AND IS_BUTTON_PRESSED 0 16
+                // sobe o giro RAPIDO ate o talo da 1a (varredura completa,
+                // como um rev de ponto morto na vida real)
                 fTgt = f1st * fThresh
                 fTgt -= fCur
-                fTgt *= 0.18
+                fTgt *= 0.25
                 fCur +=@ fTgt
             ELSE
                 IF fCur > 0.01
-                    fTgt = fCur * 0.3
+                    fTgt = fCur * 0.5
                     fCur -=@ fTgt
                 ENDIF
             ENDIF

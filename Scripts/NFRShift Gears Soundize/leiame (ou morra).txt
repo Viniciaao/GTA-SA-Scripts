@@ -140,15 +140,15 @@ Corrigido: com a embreagem pisada o script não aplica mais freio nenhum —
 o carro desacelera só de arrasto, como apertar a embreagem de verdade.
 (Em versões anteriores, acelerar com a embreagem pisada acionava freio.)
 
-RE COM EMBREAGEM PISADA (ClutchRevSim = 1)
-------------------------------------------
-Acelerar com a embreagem pisada (ou no ponto morto), com o carro PARADO,
-agora simula o motor girando: o som sobe o RPM sem o carro andar. O rev é
-simulado pela velocidade interna da transmissão — o som do jogo acompanha
-e o Soundize acompanha quando calcula o RPM por ela (se no seu caso o rev
-não soar com o Soundize, é porque o RPM dele não vem dessa velocidade; aí
-só o som vanilla gira). Sem freio, sem andar. Em movimento, a embreagem
-só silencia o motor (o carro desacelera por arrasto).
+RE DE VERDADE (ClutchRevSim = 1)
+--------------------------------
+Acelerar PARADO — no ponto morto ou com a embreagem pisada — agora faz o
+motor SUBIR DE GIRO RAPIDO até o talo, sem as rodas girarem, como na vida
+real. O gás real chega no motor (mesmo caminho do "freio de mão +
+acelerar" do jogo, que o Soundize acompanha por usar as marchas/estado do
+jogo) e um freio interno segura o carro no lugar enquanto você está
+parado. Em movimento, a embreagem só desacopla: sem freio nenhum, o carro
+desacelera de arrasto ao passar marcha.
 
 
 
