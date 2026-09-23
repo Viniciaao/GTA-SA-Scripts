@@ -272,8 +272,11 @@ faltando, o jogo lê lixo.
 * `tools/nodes_tool.py` — lê, valida e compara `nodes*.dat`
   (`validar`, `info`, `comparar`, `criar-simples`).
 * `tools/tests.py` — testes do validador e demonstração dos bugs da versão 1.0.
-* `tools/check_script.py` — verificação estática do `.sc` (blocos, labels,
-  variáveis, limites do Sanny/CLEO) sem precisar do Sanny Builder.
+* `tools/check_script.py` — pré-checagem estática do `.sc` (blocos, labels,
+  variáveis, limite de 32 locais e a regra de uma operação por expressão do
+  gta3script) — roda sem instalar nada, mas **não substitui** o compilador.
+* `tools/build.sh` + `BUILD.md` — compilam de verdade o `.sc` com o **gta3sc**
+  (linguagem gta3script, não Sanny Builder) e geram o `.cs`.
 
 Exemplo de uso depois de salvar com o mod:
 

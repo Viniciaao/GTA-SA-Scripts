@@ -16,7 +16,12 @@
         nao-rodovia exclusivos, ciclo do Traffic Level, path width da navi
         editavel e modelo da navi vindo do VisualPathEditor.ini.
 
-    Requer CLEO 4.4+ e CLEO+ (opcodes de extended vars 0E1A/0E1B/0E1C).
+    Requer CLEO 4.4+ e CLEO+ 1.0.7 (listas/extended vars).
+
+    ATENCAO: este source e' gta3script, compilado com o gta3sc - NAO e' Sanny
+    Builder. A receita de compilacao (compilador, cleo.xml do CLEO+ 1.0.7 e as
+    flags) esta em BUILD.md / tools/build.sh. Codificar gta3script: cada
+    expressao aceita UMA operacao ("size += 14 * naviCount" nao compila).
 */
 
 SCRIPT_START
@@ -4184,7 +4189,8 @@ SCRIPT_END
 
             //================== CONFERENCIA FINAL ==================
             size = 28 * nodeCount
-            size += 14 * naviCount
+            iz = 14 * naviCount
+            size += iz
             iz = 8 * linkCount
             size += iz
             size += 1172 //20 (cabecalho) + 768 (slots extras de links) + 192 + 192

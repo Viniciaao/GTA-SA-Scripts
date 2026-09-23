@@ -210,11 +210,44 @@ arquivos originais (pra eles a seção 5 não é usada).
 
 ---
 
+## 10. O source é gta3script — e a v1.1 foi de fato compilada
+
+O `VisualPathEditor.sc` **não é Sanny Builder**: é a linguagem **gta3script**,
+compilada com o [`gta3sc`](https://github.com/thelink2012/gta3sc). As duas
+linguagens se parecem muito (`IF/ENDIF`, `LVAR_INT`, labels, `GOSUB`), mas são
+diferentes: o Sanny não compila este arquivo.
+
+O compilador apareceu uma única coisa a corrigir no source da v1.1 — a regra de
+**uma operação por expressão**:
+
+```
+size += 14 * naviCount     // erro: expected newline after this token
+```
+```
+iz = 14 * naviCount        // certo
+size += iz
+```
+
+Com isso, o compile sai **limpo (zero erros e zero avisos)** e o `.cs` gerado
+está nesta pasta: `VisualPathEditor.cs` (37.051 bytes).
+
+**Validação do toolchain:** compilando o source **original 1.0** com a mesma
+receita, o `.cs` sai **byte a byte igual** ao `VisualPathEditor.cs` que o autor
+distribuiu (29.837 bytes, SHA-256 `43b6bd94…`) — ou seja, o compilador, a config
+e as flags são exatamente os do mod original; qualquer diferença no `.cs` da
+v1.1 vem só destas correções.
+
+A receita completa (compilador, a `cleo.xml` do CLEO+ 1.0.7 que é obrigatória,
+as flags e os atalhos pra Windows/VSCode) está em [`BUILD.md`](BUILD.md), e
+automatizada em [`tools/build.sh`](tools/build.sh).
+
 ## Como compilar e instalar
 
-1. Abra `VisualPathEditor.sc` no **Sanny Builder 4** (com os comandos do
-   **CLEO+** instalados — o mod usa `0E1A/0E1B/0E1C`, listas e `VPEV`) e
-   compile para `VisualPathEditor.cs`.
+1. Compile com o **gta3sc** (veja [`BUILD.md`](BUILD.md) — resumo:
+   `gta3sc compile VisualPathEditor.sc --config=gtasa --guesser
+   -fno-entity-tracking -fbreak-continue -fcleo --cs -o VisualPathEditor.cs`,
+   com o `cleo.xml` do **CLEO+ 1.0.7** copiado pra `config/gtasa/`), ou use o
+   `VisualPathEditor.cs` já compilado que está nesta pasta.
 2. `VisualPathEditor.cs` + `VisualPathEditor.ini` vão pra pasta `CLEO` do jogo.
 3. `gta3img/txd/pathtxd.txd` → `models/txd/`.
 4. Extraia `nodes0.dat` … `nodes63.dat` do `gta3.img` e coloque **duas cópias**:
@@ -225,10 +258,10 @@ arquivos originais (pra eles a seção 5 não é usada).
 6. Para jogar com o que você salvou: copie `CLEO/gta3img/compiled/nodesN.dat`
    pro `gta3.img` (ou use ModLoader, veja `PATHS-FORMAT.md` §7).
 
-> O compilador não roda neste ambiente de correção: o `.sc` foi revisado linha
-> por linha e passou por um verificador próprio (`tools/check_script.py`), que
-> confere blocos, labels e declaração de variáveis — mas **compile antes de
-> usar** e salve em uma área de teste primeiro, como sempre.
+> O `.sc` da v1.1 **foi compilado** com o `gta3sc` (mesmo compilador do mod
+> original, conferido byte a byte no source 1.0 — veja a seção 10) e o `.cs`
+> resultante está nesta pasta. Mesmo assim: salve primeiro numa área de teste e
+> guarde o `.bak` (o mod já faz uma cópia `.bak` sozinho).
 
 ## Como conferir se o save ficou correto
 

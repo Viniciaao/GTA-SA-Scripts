@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-check_script.py - verificador estatico de scripts CLEO (estilo Sanny Builder)
+check_script.py - pre-checagem estatica do VisualPathEditor.sc (gta3script)
 
-Confere, sem precisar do Sanny Builder:
+O compilador de verdade deste mod e' o gta3sc (linguagem gta3script, NAO Sanny
+Builder) - veja BUILD.md / tools/build.sh. Este script e' so' um quebra-galho
+para rodar sem instalar nada; ele confere:
+
   * balanceamento de blocos: { }, IF/ENDIF, WHILE/ENDWHILE, REPEAT/ENDREPEAT,
     SWITCH/ENDSWITCH;
   * labels usados por GOSUB/GOTO/CLEO_CALL (precisam existir no arquivo);
   * variaveis usadas mas nao declaradas (LVAR_INT/LVAR_FLOAT/CONST_*);
   * limite de 32 variaveis locais por bloco;
-  * comentarios /* */ e strings "" nao terminadas.
+  * comentarios /* */ e strings "" nao terminadas;
+  * a regra do gta3script que so' deixa UMA operacao por expressao
+    (`size += 14 * naviCount` e' erro de sintaxe no gta3sc).
 
 Uso:
     python3 check_script.py "caminho/arquivo.sc"
@@ -240,6 +245,20 @@ def check(path):
         for ref in CALL_REF.findall(line):
             if ref.lower() not in labels:
                 errors.append("%d: label inexistente: %s" % (num, ref))
+
+    # ------------------------------------------------------------------
+    # gta3script: uma unica operacao por expressao
+    # (o gta3sc para com "expected newline after this token" quando aparece
+    #  algo como `size += 14 * naviCount`)
+    # ------------------------------------------------------------------
+    OPERATORS = {"+", "-", "*", "/", "+=", "-=", "*=", "/="}
+    for num, line in enumerate(lines, start=1):
+        s = re.sub(r'"[^"]*"', '""', line)      # ignora dentro de strings
+        ops = [t for t in s.split() if t in OPERATORS]
+        if len(ops) > 1:
+            errors.append("%d: mais de uma operacao na mesma expressao (%s) - "
+                          "o gta3script so' aceita uma; quebre em duas linhas"
+                          % (num, " ".join(ops)))
 
     # ------------------------------------------------------------------
     # limite de 32 locais por bloco
