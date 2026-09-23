@@ -111,20 +111,14 @@ com o contador de troca zerado (+0x4B8). Resultado:
 - No cruzeiro, o corte-giro (ShiftThreshold 0.97) continua impedindo o
   jogo de subir de marcha além da sua.
 
-EMBREAGEM PATINANDO (PowerSlipMinAccel)
----------------------------------------
-Sair parado numa marcha alta depende da FORÇA do motor (fEngineAcceleration
-da handling), como na vida real:
-
-- Carros potentes (Elegy, supercars): embaixo da faixa da marcha o script
-  deixa o jogo reduzir pra 1ª sozinho — é o efeito de "embreagem patinan-
-  do": o carro SAI (mais fraco, com meio gás), o som gira baixo tipo
-  embreagem queimando, e quando a velocidade entra na faixa da sua marcha
-  ela é cravada de novo.
-- Carros velhos/fracos: a marcha fica cravada mesmo assim — o carro luta,
-  não sai, e o motor MORRE depois de ~1s acelerando ou soltando o gás.
-- Ajuste no .ini: PowerSlipMinAccel (padrão 5.5; maior = só os muito
-  fortes patinam; 9999 = nenhum patina).
+SAIR PARADO EM MARCHA ALTA
+--------------------------
+A sua marcha fica CRAVADA o tempo todo (física e som). Sair parado na 2ª
+ou 3ª: a física fraca da marcha alta segura o carro — a largada sai lenta
+e arrastada, e o som gira BAIXO na sua marcha (afogando), sem o jogo passar
+pra 1ª sozinho. Carros potentes conseguem arrancar assim; carros fracos
+lutam e o motor MORRE (potentes aguentam mais tempo labutando, pela força
+do motor da handling). Soltar o gás nessa condição também mata.
 
 DANO POR ABUSO DA PARTIDA (StarterDamage)
 -----------------------------------------
