@@ -5,6 +5,7 @@
     Mod original: Junior_Djjr (MixMods)
     Codigo antigo: "Jesus Enfermeiro (Junior_Djjr).txt" (decompilado, Sanny)
     Reescrita e otimizacao: 2026
+    Proper Shaders API: 2026 (luz per-pixel deferred)
 
     ----------------------------------------------------------------------------
     O QUE O MOD FAZ
@@ -18,6 +19,12 @@
     A luz some na hora em que o NPC morre, e varios NPCs podem ser iluminados
     ao mesmo tempo - veja o "MaxLights" no INI se voce usa algum limit
     adjuster de searchlights.
+
+    Com o Proper Shaders instalado (versao com API, 09-26+), o mod cria
+    luzes dinamicas per-pixel de verdade (PS_LightCreate): iluminam parede,
+    chao, CJ, fog volumetrica etc. Sem o Proper Shaders, cai no comportamento
+    antigo (searchlight / corona). Documentacao da API:
+        https://github.com/MixMods/ProperShadersApiExample
 
     ----------------------------------------------------------------------------
     O QUE MELHOROU EM RELACAO AO SCRIPT ANTIGO
@@ -49,6 +56,9 @@
     9.  "Type = 1" acende so o brilho (corona) e NAO usa searchlight nenhuma:
         serve tambem para testar se algum outro mod esta estourando o array de
         searchlights do jogo (que tem apenas 8 vagas).
+   10.  Integracao opcional com a API do Proper Shaders (UseProperShaders=1):
+        luz ponto/spot per-pixel que segue o NPC a cada quadro via
+        PS_LightSetPosition. Sem o .asi, o mod continua normal.
 
     ----------------------------------------------------------------------------
     REQUISITOS
@@ -56,6 +66,9 @@
     - CLEO 4.4.4 ou superior
     - CLEO+ 1.2.0 ou superior (cleo.li) - usa GET_MODEL_BY_NAME e
       GET_ANY_CHAR_NO_SAVE_RECURSIVE. Sem o CLEO+ o script avisa e se desliga.
+    - Proper Shaders (opcional, mas recomendado) com a API publica
+      (ProperShaders.asi exportando PS_LightCreate etc.). Sem ele o mod
+      usa searchlight/corona como antes.
 
     Arquivos:
         CLEO\Jesus Enfermeiro.cs    script compilado
@@ -71,29 +84,86 @@
 // ---------------------------------------------------------------------------
 // Constantes de compilacao (nao ocupam variavel nem memoria no script)
 // ---------------------------------------------------------------------------
-CONST_INT   JE_MAX_CHARS          8       // vagas de NPC iluminado por vez
+CONST_INT   JE_MAX_CHARS          16      // vagas de NPC iluminado por vez
 CONST_INT   JE_MAX_MODELS         32      // maximo de modelos lidos do INI
-CONST_INT   JE_MEM_SIZE           576     // bloco de memoria do script
+CONST_INT   JE_MEM_SIZE           896     // bloco de memoria do script
 CONST_INT   JE_OFF_MODELS         0       // 32 IDs de modelo   (128 bytes)
-CONST_INT   JE_OFF_TABLE          128     // 8 vagas x 24 bytes (192 bytes)
-CONST_INT   JE_OFF_LINE           320     // buffer de linha   (256 bytes)
-CONST_INT   JE_ENTRY_SIZE         24      // tamanho de cada vaga da tabela
-CONST_INT   JE_ENTRY_LIGHT        4       //       +4 = handle da searchlight
-CONST_INT   JE_ENTRY_X            8       //       +8 = origem X  (para o
-CONST_INT   JE_ENTRY_Y            12      //      +12 = origem Y   teste de
-CONST_INT   JE_ENTRY_Z            16      //      +16 = origem Z   movimento)
-CONST_INT   JE_ENTRY_HAS          20      //      +20 = 1 se a searchlight existe
-CONST_INT   JE_LINE_SIZE          256     // tamanho da area de linha no bloco
-CONST_INT   JE_READ_SIZE          240     // bytes lidos por linha (margem de 16)
-CONST_INT   JE_SCAN_EVERY         6       // varredura de peds a cada N quadros
-CONST_INT   JE_DEF_MAXLIGHTS      7       // o array do jogo tem 8 searchlights
+CONST_INT   JE_OFF_TABLE          128     // 16 vagas x 24 bytes (384 bytes)
+CONST_INT   JE_OFF_LINE           512     // buffer de linha   (256 bytes)
+CONST_INT   JE_OFF_DESC           768     // PS_LightDesc       (88 bytes)
+CONST_INT   JE_OFF_PS             856     // ponteiros da API   (40 bytes)
+// layout de cada vaga da tabela (24 bytes):
+//   +0  handle do ped
+//   +4  handle da luz (searchlight OU PS_LightHandle)
+//   +8  origem X (so searchlight - teste de movimento)
+//  +12  origem Y
+//  +16  origem Z
+//  +20  kind: 0=sem luz, 1=searchlight, 2=ProperShaders
+CONST_INT   JE_ENTRY_SIZE         24
+CONST_INT   JE_ENTRY_LIGHT        4
+CONST_INT   JE_ENTRY_X            8
+CONST_INT   JE_ENTRY_Y            12
+CONST_INT   JE_ENTRY_Z            16
+CONST_INT   JE_ENTRY_KIND         20
+CONST_INT   JE_KIND_NONE          0
+CONST_INT   JE_KIND_SEARCHLIGHT   1
+CONST_INT   JE_KIND_PS            2
+CONST_INT   JE_LINE_SIZE          256
+CONST_INT   JE_READ_SIZE          240
+CONST_INT   JE_SCAN_EVERY         6
+CONST_INT   JE_DEF_MAXLIGHTS      7
 CONST_INT   JE_LIGHT_COUNT_ADDR   0xA90830 // CTheScripts::NumberOfScriptSearchLights
 
+// Offsets dentro do bloco JE_OFF_PS (ponteiros / config da API)
+CONST_INT   JE_PS_CREATE          0       // PS_LightCreate*
+CONST_INT   JE_PS_DESTROY         4       // PS_LightDestroy*
+CONST_INT   JE_PS_SETPOS          8       // PS_LightSetPosition*
+CONST_INT   JE_PS_ACTIVE          12      // 1 se a API carregou
+CONST_INT   JE_PS_USE             16      // UseProperShaders do INI
+CONST_INT   JE_PS_RADIUS          20      // float
+CONST_INT   JE_PS_INTENSITY       24      // float
+CONST_INT   JE_PS_OFFSETZ         28      // float (altura da luz no corpo)
+CONST_INT   JE_PS_FOG             32      // int fogMode
+CONST_INT   JE_PS_TYPE            36      // 0=point 1=spot
+
+// PS_LightDesc (88 bytes) - ver ProperShadersAPI.h
+CONST_INT   JE_DESC_SIZE          88
+CONST_INT   JE_DESC_STRUCTSIZE    0
+CONST_INT   JE_DESC_TYPE          4
+CONST_INT   JE_DESC_FLAGS         8
+CONST_INT   JE_DESC_POSX          12
+CONST_INT   JE_DESC_POSY          16
+CONST_INT   JE_DESC_POSZ          20
+CONST_INT   JE_DESC_DIRX          24
+CONST_INT   JE_DESC_DIRY          28
+CONST_INT   JE_DESC_DIRZ          32
+CONST_INT   JE_DESC_RADIUS        36
+CONST_INT   JE_DESC_COLORR        40
+CONST_INT   JE_DESC_COLORG        44
+CONST_INT   JE_DESC_COLORB        48
+CONST_INT   JE_DESC_INTENSITY     52
+CONST_INT   JE_DESC_SPOTANGLE     56
+CONST_INT   JE_DESC_FOGMODE       60
+CONST_INT   JE_DESC_FOGINT        64
+CONST_INT   JE_DESC_BEAMMODE      68
+CONST_INT   JE_DESC_BEAMLEN       72
+CONST_INT   JE_DESC_BEAMINT       76
+CONST_INT   JE_DESC_LIFE          80
+CONST_INT   JE_DESC_FADE          84
+
 CONST_FLOAT JE_FOLLOW_DIST_SQ     2.25    // 1.5 m ao quadrado
-CONST_FLOAT JE_DEF_HEIGHT         30.0    // altura padrao do foco
-CONST_FLOAT JE_DEF_RADIUS1        0.0     // 1o raio do opcode 06B1
-CONST_FLOAT JE_DEF_RADIUS2        2.5     // 2o raio do opcode 06B1
-CONST_FLOAT JE_DEF_GLOWSIZE       0.9     // tamanho do brilho (corona)
+CONST_FLOAT JE_DEF_HEIGHT         30.0    // altura padrao do foco (searchlight)
+CONST_FLOAT JE_DEF_RADIUS1        0.0
+CONST_FLOAT JE_DEF_RADIUS2        2.5
+CONST_FLOAT JE_DEF_GLOWSIZE       0.9
+CONST_FLOAT JE_DEF_PS_RADIUS      12.0
+CONST_FLOAT JE_DEF_PS_INTENSITY   2.0
+CONST_FLOAT JE_DEF_PS_OFFSETZ     1.2
+CONST_FLOAT JE_FLOAT_ONE          1.0
+CONST_FLOAT JE_FLOAT_ZERO         0.0
+CONST_FLOAT JE_FLOAT_NEG1         -1.0
+CONST_FLOAT JE_COLOR_DIV          255.0
+CONST_FLOAT JE_DEF_SPOTANGLE      55.0
 
 SCRIPT_START
 {
@@ -101,31 +171,33 @@ SCRIPT_START
     SCRIPT_NAME jesus
 
     // -----------------------------------------------------------------------
-    // Variaveis
+    // Variaveis (limite 32 com -flocal-var-limit=32)
+    // Ponteiros da API do Proper Shaders ficam no bloco de memoria (JE_OFF_PS)
+    // para nao estourar o limite de LVAR.
     // -----------------------------------------------------------------------
-    LVAR_INT   base                    // bloco de memoria do script
+    LVAR_INT   base
     LVAR_INT   i
-    LVAR_INT   prog                    // progresso da varredura da pool
-    LVAR_INT   ch                      // pedestre   (scratch, sempre recarregado)
-    LVAR_INT   lh                      // searchlight (scratch)
-    LVAR_INT   entry                   // endereco da vaga atual da tabela
-    LVAR_INT   line                    // endereco da linha atual do INI
-    LVAR_INT   len                     // tamanho da linha / indice do '='
+    LVAR_INT   prog
+    LVAR_INT   ch
+    LVAR_INT   lh                      // searchlight OU PS_LightHandle
+    LVAR_INT   entry
+    LVAR_INT   line
+    LVAR_INT   len
     LVAR_INT   tmp
     LVAR_INT   ptr
-    LVAR_INT   model                   // ID do modelo do pedestre
-    LVAR_INT   id                      // ID de um modelo da lista do INI
-    LVAR_INT   nModels                 // quantos modelos vieram do INI
-    LVAR_INT   section                 // 0 = nenhuma, 1 = [Settings], 2 = [Models]
-    LVAR_INT   lightType               // 0 = facho, 1 = brilho, 2 = os dois
-    LVAR_INT   onlyCpr                 // 1 = so durante a reanimacao (CPR)
-    LVAR_INT   maxLights               // searchlights que o jogo aguenta
+    LVAR_INT   model
+    LVAR_INT   id
+    LVAR_INT   nModels
+    LVAR_INT   section
+    LVAR_INT   lightType               // 0=facho 1=brilho 2=ambos
+    LVAR_INT   onlyCpr
+    LVAR_INT   maxLights
     LVAR_INT   colR
     LVAR_INT   colG
     LVAR_INT   colB
-    LVAR_INT   hFile                   // arquivo do INI
+    LVAR_INT   hFile
 
-    LVAR_FLOAT height                  // altura do foco acima do ped
+    LVAR_FLOAT height
     LVAR_FLOAT rad1
     LVAR_FLOAT rad2
     LVAR_FLOAT glowSize
@@ -135,15 +207,10 @@ SCRIPT_START
     LVAR_FLOAT sz
     LVAR_FLOAT dx
     LVAR_FLOAT dist
+    LVAR_FLOAT fTmp                    // scratch float (cor 0-1, configs PS)
 
     // -----------------------------------------------------------------------
-    // Tipos das variaveis de entidade
-    // -----------------------------------------------------------------------
-    // O gta3script exige que uma variavel de entidade nasca de um comando que
-    // a devolva: e isso que o bloco abaixo faz com `ch` (CHAR) e `lh`
-    // (SEARCHLIGHT). Ele NUNCA roda (o CLEO zera as variaveis locais de um
-    // script customizado, entao `base` valendo 0 nao e < 0) e, mesmo se
-    // rodasse, nao estraga nada: a luz e criada e apagada na mesma hora.
+    // Tipos das variaveis de entidade (CHAR / SEARCHLIGHT)
     // -----------------------------------------------------------------------
     IF base < 0
         GET_PLAYER_CHAR 0 (ch)
@@ -173,21 +240,31 @@ SCRIPT_START
         TERMINATE_THIS_CUSTOM_SCRIPT
     ENDIF
 
-    // zera a tabela (ped handle 0 = vaga livre, JE_ENTRY_HAS 0 = sem luz)
+    // zera a tabela e o bloco da API
     entry = base
     entry += JE_OFF_TABLE
     i = 0
     WHILE i < JE_MAX_CHARS
         WRITE_MEMORY entry 4 0 0
         tmp = entry
-        tmp += JE_ENTRY_HAS
+        tmp += JE_ENTRY_KIND
         WRITE_MEMORY tmp 4 0 0
         entry += JE_ENTRY_SIZE
         i += 1
     ENDWHILE
 
-    // o INI e lido uma vez, aqui na entrada do script
+    ptr = base
+    ptr += JE_OFF_PS
+    i = 0
+    WHILE i < 40
+        tmp = ptr
+        tmp += i
+        WRITE_MEMORY tmp 1 0 0
+        i += 1
+    ENDWHILE
+
     GOSUB LoadIni
+    GOSUB TryLoadProperShaders
 
     // -----------------------------------------------------------------------
     // Loop principal
@@ -197,6 +274,23 @@ main_loop:
 
     IF NOT IS_PLAYER_PLAYING 0
         GOTO main_loop
+    ENDIF
+
+    // tenta de novo a API umas vezes (ASI pode carregar depois do CLEO)
+    IF FRAME_MOD 120
+        ptr = base
+        ptr += JE_OFF_PS
+        ptr += JE_PS_ACTIVE
+        READ_MEMORY ptr 4 0 (tmp)
+        IF tmp = 0
+            ptr = base
+            ptr += JE_OFF_PS
+            ptr += JE_PS_USE
+            READ_MEMORY ptr 4 0 (tmp)
+            IF tmp = 1
+                GOSUB TryLoadProperShaders
+            ENDIF
+        ENDIF
     ENDIF
 
     IF FRAME_MOD JE_SCAN_EVERY
@@ -212,10 +306,72 @@ main_loop:
     GOTO main_loop
 
     // =======================================================================
-    // LoadIni - le CLEO\Jesus Enfermeiro.ini (ajustes + lista de modelos)
+    // TryLoadProperShaders - resolve PS_Light* em ProperShaders.asi
+    // =======================================================================
+TryLoadProperShaders:
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_USE
+    READ_MEMORY ptr 4 0 (tmp)
+    IF tmp = 0
+        RETURN
+    ENDIF
+
+    // ja carregou?
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_ACTIVE
+    READ_MEMORY ptr 4 0 (tmp)
+    IF tmp = 1
+        RETURN
+    ENDIF
+
+    // GET_LOADED_LIBRARY so acha se o ASI ja esta mapeado (ASI Loader).
+    // Usa `model` (INT puro) como handle da DLL - NAO use `lh` (SEARCHLIGHT).
+    IF NOT GET_LOADED_LIBRARY "ProperShaders.asi" (model)
+        RETURN
+    ENDIF
+
+    GET_DYNAMIC_LIBRARY_PROCEDURE "PS_LightCreate" model (tmp)
+    IF tmp = 0
+        RETURN
+    ENDIF
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_CREATE
+    WRITE_MEMORY ptr 4 tmp 0
+
+    GET_DYNAMIC_LIBRARY_PROCEDURE "PS_LightDestroy" model (tmp)
+    IF tmp = 0
+        RETURN
+    ENDIF
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_DESTROY
+    WRITE_MEMORY ptr 4 tmp 0
+
+    GET_DYNAMIC_LIBRARY_PROCEDURE "PS_LightSetPosition" model (tmp)
+    IF tmp = 0
+        RETURN
+    ENDIF
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_SETPOS
+    WRITE_MEMORY ptr 4 tmp 0
+
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_ACTIVE
+    WRITE_MEMORY ptr 4 1 0
+
+    // aviso so uma vez: luz per-pixel ligada
+    PRINT_STRING_NOW "~g~Jesus Enfermeiro:~w~ Proper Shaders API ativa (luz per-pixel)." 5000
+    RETURN
+
+    // =======================================================================
+    // LoadIni
     // =======================================================================
 LoadIni:
-    // valores padrao, usados se o INI nao existir ou nao definir a chave
     lightType = 0
     height = JE_DEF_HEIGHT
     rad1 = JE_DEF_RADIUS1
@@ -228,6 +384,31 @@ LoadIni:
     maxLights = JE_DEF_MAXLIGHTS
     nModels = 0
 
+    // defaults Proper Shaders (gravados no bloco)
+    ptr = base
+    ptr += JE_OFF_PS
+    tmp = ptr
+    tmp += JE_PS_USE
+    WRITE_MEMORY tmp 4 1 0
+    tmp = ptr
+    tmp += JE_PS_RADIUS
+    fTmp = JE_DEF_PS_RADIUS
+    WRITE_MEMORY tmp 4 fTmp 0
+    tmp = ptr
+    tmp += JE_PS_INTENSITY
+    fTmp = JE_DEF_PS_INTENSITY
+    WRITE_MEMORY tmp 4 fTmp 0
+    tmp = ptr
+    tmp += JE_PS_OFFSETZ
+    fTmp = JE_DEF_PS_OFFSETZ
+    WRITE_MEMORY tmp 4 fTmp 0
+    tmp = ptr
+    tmp += JE_PS_FOG
+    WRITE_MEMORY tmp 4 1 0
+    tmp = ptr
+    tmp += JE_PS_TYPE
+    WRITE_MEMORY tmp 4 0 0
+
     IF NOT DOES_FILE_EXIST "CLEO\Jesus Enfermeiro.ini"
         GOSUB DefaultModels
         PRINT_STRING_NOW "~y~Jesus Enfermeiro:~w~ crie o CLEO\Jesus Enfermeiro.ini (por enquanto so os medicos originais)." 9000
@@ -238,10 +419,6 @@ LoadIni:
         section = 0
         tmp = 1
         WHILE tmp = 1
-            // O ponteiro do buffer PRECISA ser refeito a cada linha: o parser
-            // avanca `line` (limpeza de espacos, [secao], BOM) e, sem isso, a
-            // leitura seguinte escreveria cada vez mais longe, fora do bloco
-            // de memoria do script (isso corrompe o heap do jogo).
             line = base
             line += JE_OFF_LINE
             IF READ_STRING_FROM_FILE hFile line JE_READ_SIZE
@@ -258,13 +435,9 @@ LoadIni:
     ENDIF
     RETURN
 
-    // -----------------------------------------------------------------------
-    // ParseLine - interpreta uma linha do INI
-    // -----------------------------------------------------------------------
 ParseLine:
     GET_STRING_LENGTH $line (len)
 
-    // pula o BOM (alguns editores do Windows gravam UTF-8 com BOM)
     IF len > 2
         READ_MEMORY line 1 0 (tmp)
         IF tmp = 239
@@ -273,7 +446,6 @@ ParseLine:
         ENDIF
     ENDIF
 
-    // tira espacos, tabs e CR/LF do comeco
     i = 0
     WHILE i < len
         ptr = line
@@ -288,7 +460,6 @@ ParseLine:
     line += i
     len -= i
 
-    // ... e do fim
     WHILE len > 0
         i = len
         i -= 1
@@ -305,7 +476,6 @@ ParseLine:
         RETURN
     ENDIF
 
-    // comentarios: ; ou #
     READ_MEMORY line 1 0 (tmp)
     IF tmp = 59
         RETURN
@@ -314,13 +484,11 @@ ParseLine:
         RETURN
     ENDIF
 
-    // cabecalho de secao: [Nome]
     IF tmp = 91
         GOSUB ParseSection
         RETURN
     ENDIF
 
-    // procura o '=' da linha
     i = 0
     WHILE i < len
         ptr = line
@@ -333,7 +501,6 @@ ParseLine:
     ENDWHILE
 
     IF i >= len
-        // linha sem '=': dentro de [Models] a linha toda e um nome de modelo
         IF section = 2
             GOSUB AddModel
         ENDIF
@@ -341,13 +508,11 @@ ParseLine:
     ENDIF
 
     IF section = 2
-        // "nome = valor" em [Models]: o valor e ignorado, o nome vale
         CUT_STRING_AT line i
         GOSUB AddModel
         RETURN
     ENDIF
 
-    // chave = valor (antes de qualquer secao ou em [Settings])
     ptr = line
     ptr += i
     ptr += 1
@@ -355,9 +520,6 @@ ParseLine:
     GOSUB ParseSetting
     RETURN
 
-    // -----------------------------------------------------------------------
-    // ParseSection - [Settings] ou [Models]
-    // -----------------------------------------------------------------------
 ParseSection:
     i = 1
     WHILE i < len
@@ -385,15 +547,10 @@ ParseSection:
         section = 2
         RETURN
     ENDIF
-    // a comparacao acima deixou o texto em MAIUSCULAS: qualquer outra secao
-    // vale como nome de modelo
     section = 2
     GOSUB AddModel
     RETURN
 
-    // -----------------------------------------------------------------------
-    // ParseSetting - aplica uma chave de [Settings]
-    // -----------------------------------------------------------------------
 ParseSetting:
     IF IS_STRING_EQUAL $line "TYPE" 32 0 ""
         SCAN_STRING $ptr "%d" (tmp) (lightType)
@@ -419,14 +576,54 @@ ParseSetting:
     IF IS_STRING_EQUAL $line "MAXLIGHTS" 32 0 ""
         SCAN_STRING $ptr "%d" (tmp) (maxLights)
     ENDIF
+
+    // --- Proper Shaders ---
+    IF IS_STRING_EQUAL $line "USEPROPERSHADERS" 32 0 ""
+        SCAN_STRING $ptr "%d" (tmp) (id)
+        ptr = base
+        ptr += JE_OFF_PS
+        ptr += JE_PS_USE
+        WRITE_MEMORY ptr 4 id 0
+    ENDIF
+    IF IS_STRING_EQUAL $line "PSRADIUS" 32 0 ""
+        SCAN_STRING $ptr "%f" (tmp) (fTmp)
+        ptr = base
+        ptr += JE_OFF_PS
+        ptr += JE_PS_RADIUS
+        WRITE_MEMORY ptr 4 fTmp 0
+    ENDIF
+    IF IS_STRING_EQUAL $line "PSINTENSITY" 32 0 ""
+        SCAN_STRING $ptr "%f" (tmp) (fTmp)
+        ptr = base
+        ptr += JE_OFF_PS
+        ptr += JE_PS_INTENSITY
+        WRITE_MEMORY ptr 4 fTmp 0
+    ENDIF
+    IF IS_STRING_EQUAL $line "PSOFFSETZ" 32 0 ""
+        SCAN_STRING $ptr "%f" (tmp) (fTmp)
+        ptr = base
+        ptr += JE_OFF_PS
+        ptr += JE_PS_OFFSETZ
+        WRITE_MEMORY ptr 4 fTmp 0
+    ENDIF
+    IF IS_STRING_EQUAL $line "PSFOG" 32 0 ""
+        SCAN_STRING $ptr "%d" (tmp) (id)
+        ptr = base
+        ptr += JE_OFF_PS
+        ptr += JE_PS_FOG
+        WRITE_MEMORY ptr 4 id 0
+    ENDIF
+    IF IS_STRING_EQUAL $line "PSTYPE" 32 0 ""
+        SCAN_STRING $ptr "%d" (tmp) (id)
+        ptr = base
+        ptr += JE_OFF_PS
+        ptr += JE_PS_TYPE
+        WRITE_MEMORY ptr 4 id 0
+    ENDIF
     RETURN
 
-    // -----------------------------------------------------------------------
-    // AddModel - guarda o ID do modelo cujo nome esta em `line`
-    // -----------------------------------------------------------------------
 AddModel:
     GOSUB CountLen
-    // a linha e so ate o primeiro espaco, ';' ou '#' (aceita comentario junto)
     i = 0
     WHILE i < len
         ptr = line
@@ -461,16 +658,10 @@ AddModel:
     ENDIF
     RETURN
 
-    // -----------------------------------------------------------------------
-    // CountLen - len = tamanho da string em `line`
-    // -----------------------------------------------------------------------
 CountLen:
     GET_STRING_LENGTH $line (len)
     RETURN
 
-    // -----------------------------------------------------------------------
-    // DefaultModels - a lista do mod original (medicos de LS/SF/LV)
-    // -----------------------------------------------------------------------
 DefaultModels:
     entry = base
     entry += JE_OFF_MODELS
@@ -491,9 +682,6 @@ DefaultModels:
     ENDIF
     RETURN
 
-    // -----------------------------------------------------------------------
-    // ModelInList - ptr = 1 se o ID em `model` esta na lista do INI
-    // -----------------------------------------------------------------------
 ModelInList:
     ptr = 0
     entry = base
@@ -511,7 +699,7 @@ ModelInList:
     RETURN
 
     // =======================================================================
-    // ScanPeds - procura na pool de pedestres quem usa um modelo do INI
+    // ScanPeds
     // =======================================================================
 ScanPeds:
     prog = 0
@@ -521,7 +709,6 @@ ScanPeds:
     RETURN
 
 CheckPed:
-    // ja esta sendo acompanhado?
     i = 0
     WHILE i < JE_MAX_CHARS
         GOSUB GetEntry
@@ -532,14 +719,12 @@ CheckPed:
         i += 1
     ENDWHILE
 
-    // o modelo dele esta na lista do INI?
     GET_CHAR_MODEL ch (model)
     GOSUB ModelInList
     IF ptr = 0
         RETURN
     ENDIF
 
-    // guarda na primeira vaga livre
     i = 0
     WHILE i < JE_MAX_CHARS
         GOSUB GetEntry
@@ -553,7 +738,7 @@ CheckPed:
     RETURN
 
     // =======================================================================
-    // UpdateEntry - mantem (ou nao) a luz do NPC da vaga `i`
+    // UpdateEntry
     // =======================================================================
 UpdateEntry:
     GOSUB GetEntry
@@ -562,10 +747,6 @@ UpdateEntry:
         RETURN
     ENDIF
 
-    // morreu, ou foi deletado (streaming): a luz vai embora.
-    // O handle de ped carrega a versao da vaga da pool (index << 8 | versao),
-    // entao vaga reaproveitada por outro ped nao "herda" a luz: o handle
-    // antigo deixa de existir e a vaga e liberada aqui mesmo.
     IF NOT DOES_CHAR_EXIST ch
         GOSUB DropEntry
         RETURN
@@ -575,7 +756,6 @@ UpdateEntry:
         RETURN
     ENDIF
 
-    // opcional: so enquanto ele reanima alguem (comportamento do mod original)
     IF onlyCpr = 1
         IF NOT IS_CHAR_PLAYING_ANIM ch "CPR"
             GOSUB KillLight
@@ -585,14 +765,41 @@ UpdateEntry:
 
     GET_CHAR_COORDINATES ch (px py pz)
 
-    // facho de searchlight (recriado apenas quando o NPC sai do lugar)
+    // Proper Shaders tem prioridade quando a API esta ativa
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_ACTIVE
+    READ_MEMORY ptr 4 0 (tmp)
+    IF tmp = 1
+        GOSUB UpdatePsLight
+        // se a PS criou luz nesta vaga, corona opcional (Type 1/2) e pronto
+        tmp = entry
+        tmp += JE_ENTRY_KIND
+        READ_MEMORY tmp 4 0 (id)
+        IF id = JE_KIND_PS
+            IF lightType = 1
+            OR lightType = 2
+                IF IS_CHAR_ON_SCREEN ch
+                    ptr = base
+                    ptr += JE_OFF_PS
+                    ptr += JE_PS_OFFSETZ
+                    READ_MEMORY ptr 4 0 (sz)
+                    sz += pz
+                    DRAW_CORONA px py sz glowSize CORONATYPE_SHINYSTAR FLARETYPE_NONE colR colG colB
+                ENDIF
+            ENDIF
+            RETURN
+        ENDIF
+        // PS falhou (registry cheia etc.): cai no fallback vanilla abaixo
+    ENDIF
+
+    // fallback vanilla: searchlight +/ou corona
     IF lightType = 1
         GOSUB KillLight
     ELSE
-        GOSUB UpdateLight
+        GOSUB UpdateSearchLight
     ENDIF
 
-    // brilho (corona com cor configuravel)
     IF lightType = 1
     OR lightType = 2
         IF IS_CHAR_ON_SCREEN ch
@@ -604,29 +811,202 @@ UpdateEntry:
     RETURN
 
     // -----------------------------------------------------------------------
-    // UpdateLight - cria/move a searchlight da vaga atual
+    // UpdatePsLight - cria/move a luz per-pixel do Proper Shaders
     // -----------------------------------------------------------------------
-UpdateLight:
+UpdatePsLight:
     tmp = entry
-    tmp += JE_ENTRY_HAS
+    tmp += JE_ENTRY_KIND
     READ_MEMORY tmp 4 0 (id)
-    IF id = 0
-        GOSUB CreateLight
+    IF id = JE_KIND_PS
+        // move todo frame (barato: PS_LightSetPosition)
+        // handle PS fica em `model` (INT puro) - `lh` e tipado SEARCHLIGHT
+        tmp = entry
+        tmp += JE_ENTRY_LIGHT
+        READ_MEMORY tmp 4 0 (model)
+        IF model = 0
+            GOSUB CreatePsLight
+            RETURN
+        ENDIF
+        ptr = base
+        ptr += JE_OFF_PS
+        ptr += JE_PS_OFFSETZ
+        READ_MEMORY ptr 4 0 (sz)
+        sz += pz
+        ptr = base
+        ptr += JE_OFF_PS
+        ptr += JE_PS_SETPOS
+        READ_MEMORY ptr 4 0 (tmp)
+        // PS_LightSetPosition(handle, x, y, z) __cdecl
+        CALL_FUNCTION_RETURN tmp 4 4 (model px py sz) (id)
+        IF id = 0
+            // handle ficou invalido (registry limpou / reload): recria
+            tmp = entry
+            tmp += JE_ENTRY_KIND
+            WRITE_MEMORY tmp 4 0 0
+            GOSUB CreatePsLight
+        ENDIF
         RETURN
     ENDIF
 
-    // a luz ainda e a nossa? (missao ou script podem limpar o array do jogo)
+    // se tinha searchlight antiga, apaga antes de criar PS
+    IF id = JE_KIND_SEARCHLIGHT
+        GOSUB KillSearchLightOnly
+    ENDIF
+    GOSUB CreatePsLight
+    RETURN
+
+CreatePsLight:
+    // monta PS_LightDesc em JE_OFF_DESC
+    line = base
+    line += JE_OFF_DESC
+
+    // zera os 88 bytes
+    i = 0
+    WHILE i < JE_DESC_SIZE
+        ptr = line
+        ptr += i
+        WRITE_MEMORY ptr 1 0 0
+        i += 1
+    ENDWHILE
+
+    // structSize
+    ptr = line
+    ptr += JE_DESC_STRUCTSIZE
+    WRITE_MEMORY ptr 4 JE_DESC_SIZE 0
+
+    // type (0 point / 1 spot)
+    tmp = base
+    tmp += JE_OFF_PS
+    tmp += JE_PS_TYPE
+    READ_MEMORY tmp 4 0 (id)
+    ptr = line
+    ptr += JE_DESC_TYPE
+    WRITE_MEMORY ptr 4 id 0
+
+    // position
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_OFFSETZ
+    READ_MEMORY ptr 4 0 (sz)
+    sz += pz
+    ptr = line
+    ptr += JE_DESC_POSX
+    WRITE_MEMORY ptr 4 px 0
+    ptr += 4
+    WRITE_MEMORY ptr 4 py 0
+    ptr += 4
+    WRITE_MEMORY ptr 4 sz 0
+
+    // direction (0,0,-1) - util pro spot
+    ptr = line
+    ptr += JE_DESC_DIRZ
+    fTmp = JE_FLOAT_NEG1
+    WRITE_MEMORY ptr 4 fTmp 0
+
+    // radius
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_RADIUS
+    READ_MEMORY ptr 4 0 (fTmp)
+    ptr = line
+    ptr += JE_DESC_RADIUS
+    WRITE_MEMORY ptr 4 fTmp 0
+
+    // color 0..1 a partir de colR/G/B
+    fTmp =# colR
+    fTmp /= JE_COLOR_DIV
+    ptr = line
+    ptr += JE_DESC_COLORR
+    WRITE_MEMORY ptr 4 fTmp 0
+    fTmp =# colG
+    fTmp /= JE_COLOR_DIV
+    ptr = line
+    ptr += JE_DESC_COLORG
+    WRITE_MEMORY ptr 4 fTmp 0
+    fTmp =# colB
+    fTmp /= JE_COLOR_DIV
+    ptr = line
+    ptr += JE_DESC_COLORB
+    WRITE_MEMORY ptr 4 fTmp 0
+
+    // intensity
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_INTENSITY
+    READ_MEMORY ptr 4 0 (fTmp)
+    ptr = line
+    ptr += JE_DESC_INTENSITY
+    WRITE_MEMORY ptr 4 fTmp 0
+
+    // spotAngle default
+    ptr = line
+    ptr += JE_DESC_SPOTANGLE
+    fTmp = JE_DEF_SPOTANGLE
+    WRITE_MEMORY ptr 4 fTmp 0
+
+    // fogMode + fogIntensity=1
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_FOG
+    READ_MEMORY ptr 4 0 (id)
+    ptr = line
+    ptr += JE_DESC_FOGMODE
+    WRITE_MEMORY ptr 4 id 0
+    ptr = line
+    ptr += JE_DESC_FOGINT
+    fTmp = JE_FLOAT_ONE
+    WRITE_MEMORY ptr 4 fTmp 0
+
+    // beamIntensity = 1 (resto ja zero)
+    ptr = line
+    ptr += JE_DESC_BEAMINT
+    WRITE_MEMORY ptr 4 fTmp 0
+
+    // chama PS_LightCreate(&desc) - retorno em `id` (INT puro; `lh` e SEARCHLIGHT)
+    ptr = base
+    ptr += JE_OFF_PS
+    ptr += JE_PS_CREATE
+    READ_MEMORY ptr 4 0 (tmp)
+    CALL_FUNCTION_RETURN tmp 1 1 (line) (id)
+    IF id = 0
+        // registry cheia (64 luzes) ou desc rejeitada
+        RETURN
+    ENDIF
+
+    ptr = entry
+    ptr += JE_ENTRY_LIGHT
+    WRITE_MEMORY ptr 4 id 0
+    ptr = entry
+    ptr += JE_ENTRY_KIND
+    WRITE_MEMORY ptr 4 JE_KIND_PS 0
+    RETURN
+
+    // -----------------------------------------------------------------------
+    // UpdateSearchLight (fallback vanilla)
+    // -----------------------------------------------------------------------
+UpdateSearchLight:
+    tmp = entry
+    tmp += JE_ENTRY_KIND
+    READ_MEMORY tmp 4 0 (id)
+    IF id = JE_KIND_NONE
+        GOSUB CreateSearchLight
+        RETURN
+    ENDIF
+    IF id = JE_KIND_PS
+        // nao misturar: se a API caiu no meio do jogo, mata PS e cria SL
+        GOSUB KillLight
+        GOSUB CreateSearchLight
+        RETURN
+    ENDIF
+
     tmp = entry
     tmp += JE_ENTRY_LIGHT
     READ_MEMORY tmp 4 0 (lh)
     IF NOT DOES_SEARCHLIGHT_EXIST lh
-        GOSUB CreateLight
+        GOSUB CreateSearchLight
         RETURN
     ENDIF
 
-    // A searchlight e estatica (como no mod original): o jogo nao tem opcode
-    // para mover a origem dela. Quando o NPC se afasta, a luz e refeita no
-    // lugar certo - e dai a mira volta a apontar para o pe do NPC.
     sz = pz
     sz += height
     dist = 0.0
@@ -649,20 +1029,13 @@ UpdateLight:
 
     IF dist > JE_FOLLOW_DIST_SQ
         DELETE_SEARCHLIGHT lh
-        GOSUB CreateLight
+        GOSUB CreateSearchLight
     ENDIF
     RETURN
 
-    // -----------------------------------------------------------------------
-    // CreateLight - cria a searchlight no ponto atual
-    // -----------------------------------------------------------------------
-CreateLight:
-    // O handler de 06B1 escreve FORA do array quando nao ha vaga, entao nunca
-    // crie uma luz sem confirmar que ainda tem espaco (MaxLights no INI).
+CreateSearchLight:
     READ_MEMORY JE_LIGHT_COUNT_ADDR 2 0 (tmp)
     IF tmp < 0
-        // leitura absurda do contador (EXE diferente / limit adjuster): nao
-        // arrisca criar luz as cegas
         RETURN
     ENDIF
     IF tmp >= maxLights
@@ -673,12 +1046,9 @@ CreateLight:
     sz += height
     CREATE_SEARCHLIGHT px py sz px py pz rad1 rad2 (lh)
     IF lh < 0
-        // sem vaga no array do jogo: nunca guarde um handle invalido, os
-        // opcodes 0x6B2/0x6B3/0x6B5 usam o indice dele de verdade
         RETURN
     ENDIF
 
-    // guarda o handle, de onde a luz nasceu e a marca de "temos luz"
     ptr = entry
     ptr += JE_ENTRY_LIGHT
     WRITE_MEMORY ptr 4 lh 0
@@ -689,21 +1059,39 @@ CreateLight:
     ptr += 4
     WRITE_MEMORY ptr 4 sz 0
     ptr += 4
-    WRITE_MEMORY ptr 4 1 0
+    WRITE_MEMORY ptr 4 JE_KIND_SEARCHLIGHT 0
     RETURN
 
     // -----------------------------------------------------------------------
-    // KillLight - apaga a searchlight desta vaga (sem perder o NPC)
+    // KillLight - apaga searchlight OU luz PS desta vaga
     // -----------------------------------------------------------------------
 KillLight:
     ptr = entry
-    ptr += JE_ENTRY_HAS
+    ptr += JE_ENTRY_KIND
     READ_MEMORY ptr 4 0 (id)
-    IF id = 0
+    IF id = JE_KIND_NONE
         RETURN
     ENDIF
     WRITE_MEMORY ptr 4 0 0
 
+    IF id = JE_KIND_PS
+        // handle PS e INT opaco - le direto em `model` (nao em `lh`/SEARCHLIGHT)
+        ptr = entry
+        ptr += JE_ENTRY_LIGHT
+        READ_MEMORY ptr 4 0 (model)
+        IF model > 0
+            tmp = base
+            tmp += JE_OFF_PS
+            tmp += JE_PS_DESTROY
+            READ_MEMORY tmp 4 0 (ptr)
+            IF ptr > 0
+                CALL_FUNCTION_RETURN ptr 1 1 (model) (tmp)
+            ENDIF
+        ENDIF
+        RETURN
+    ENDIF
+
+    // searchlight
     ptr = entry
     ptr += JE_ENTRY_LIGHT
     READ_MEMORY ptr 4 0 (lh)
@@ -712,17 +1100,26 @@ KillLight:
     ENDIF
     RETURN
 
-    // -----------------------------------------------------------------------
-    // DropEntry - apaga a luz e libera a vaga da tabela
-    // -----------------------------------------------------------------------
+KillSearchLightOnly:
+    ptr = entry
+    ptr += JE_ENTRY_KIND
+    READ_MEMORY ptr 4 0 (id)
+    IF id = JE_KIND_SEARCHLIGHT
+        WRITE_MEMORY ptr 4 0 0
+        ptr = entry
+        ptr += JE_ENTRY_LIGHT
+        READ_MEMORY ptr 4 0 (lh)
+        IF DOES_SEARCHLIGHT_EXIST lh
+            DELETE_SEARCHLIGHT lh
+        ENDIF
+    ENDIF
+    RETURN
+
 DropEntry:
     GOSUB KillLight
     WRITE_MEMORY entry 4 0 0
     RETURN
 
-    // -----------------------------------------------------------------------
-    // GetEntry - entry = endereco da vaga `i` da tabela
-    // -----------------------------------------------------------------------
 GetEntry:
     tmp = i
     tmp = tmp * JE_ENTRY_SIZE
