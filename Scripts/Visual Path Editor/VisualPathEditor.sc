@@ -1,3 +1,29 @@
+/*
+    Visual Path Editor 1.0 (LightVelox) - correcoes de salvamento (v1.1)
+
+    O que mudou (detalhes em CORRECOES.md):
+      - grava o nodesN.dat COMPLETO: os 192 slots extras das secoes 3, 6 e 7
+        (a 1.0 nao escrevia a secao de interseccoes inteira e mais 192 bytes
+        de comprimentos - o jogo lia lixo depois do fim do arquivo);
+      - fim do "iz -= 2" que afundava todos os nodes 0.25 m a cada salvamento;
+      - valida tudo ANTES de abrir o arquivo de destino (links invalidos,
+        maximo de 15 links por node, contagens, coordenadas, navis sem node
+        conectado) e recusa o salvamento mostrando o que esta errado;
+      - backup do arquivo compilado anterior em nodesN.dat.bak;
+      - se algum arquivo falhar, as areas NAO sao descarregadas (o trabalho da
+        sessao nao e perdido: corrija e salve de novo);
+      - correcoes de UI: maximo de 7 lanes (campo de 3 bits), Highway x
+        nao-rodovia exclusivos, ciclo do Traffic Level, path width da navi
+        editavel e modelo da navi vindo do VisualPathEditor.ini.
+
+    Requer CLEO 4.4+ e CLEO+ 1.0.7 (listas/extended vars).
+
+    ATENCAO: este source e' gta3script, compilado com o gta3sc - NAO e' Sanny
+    Builder. A receita de compilacao (compilador, cleo.xml do CLEO+ 1.0.7 e as
+    flags) esta em BUILD.md / tools/build.sh. Codificar gta3script: cada
+    expressao aceita UMA operacao ("size += 14 * naviCount" nao compila).
+*/
+
 SCRIPT_START
 {
 NOP
@@ -20,8 +46,18 @@ GET_PLAYER_CHAR 0 scplayer
 STREAM_CUSTOM_SCRIPT_FROM_LABEL visualEditor 0
 GET_LAST_CREATED_CUSTOM_SCRIPT visualScript
 
+IF visualScript = 0
+    PRINT_STRING_NOW "~r~Visual Path Editor: nao foi possivel criar os scripts internos" 6000
+    TERMINATE_THIS_CUSTOM_SCRIPT
+ENDIF
+
 STREAM_CUSTOM_SCRIPT_FROM_LABEL manipulationEditor 0
 GET_LAST_CREATED_CUSTOM_SCRIPT manipulationScript
+
+IF manipulationScript = 0
+    PRINT_STRING_NOW "~r~Visual Path Editor: nao foi possivel criar os scripts internos" 6000
+    TERMINATE_THIS_CUSTOM_SCRIPT
+ENDIF
 
 SET_THREAD_VAR visualScript 11 number //Pointer pra ca
 SET_THREAD_VAR visualScript 9 manipulationScript //Pointer pro Manipulator
@@ -76,10 +112,19 @@ main:
                 IF loaded = TRUE
                     GOSUB saveRegions
 
-                    WAIT 250 //Se não der wait o jogo não exclui os objects caso tenham muitos
-                    loaded = FALSE
-                    GOSUB deleteObjects
-                    GOSUB unloadFiles
+                    //So descarrega as areas se TUDO foi salvo; se algo falhou o usuario
+                    //ainda pode corrigir (a mensagem diz o que esta errado) e salvar de novo
+                    GET_LABEL_POINTER saveInfo temporary
+                    READ_MEMORY temporary 4 0 (temporary)
+
+                    IF temporary = 0
+                        WAIT 250 //Se não der wait o jogo não exclui os objects caso tenham muitos
+                        loaded = FALSE
+                        GOSUB deleteObjects
+                        GOSUB unloadFiles
+                    ELSE
+                        PRINT_FORMATTED_NOW "~r~%i arquivo(s) nao foram salvos, veja as mensagens acima" 9000 temporary
+                    ENDIF
                 ENDIF
             BREAK
             CASE 2  //Load
@@ -353,20 +398,92 @@ GOTO main
             OPEN_FILE $temporary 0x6272 file
         ELSE
             PRINT_STRING_NOW "File does not exist" 3000
+            GOSUB loadFailed
             RETURN
         ENDIF
 
-        //Aloca memória suficiente pra armazenar o arquivo
-        GET_FILE_SIZE file temporary
-        CLEO_CALL getListPointer 0 (3 curfile) (list) //FileList
-        ALLOCATE_MEMORY temporary filememory //Escreve nos endereços de memória para arquivos
+        IF NOT file > 0
+            PRINT_FORMATTED_NOW "~r~nodes%i.dat: nao foi possivel abrir o arquivo" 5000 region
+            GOSUB loadFailed
+            RETURN
+        ENDIF
 
-        //Copia todo o arquivo pra memória e fecha
+        //Tamanho real do arquivo
+        GET_FILE_SIZE file temporary
+
+        IF temporary < 20
+            PRINT_FORMATTED_NOW "~r~nodes%i.dat: arquivo pequeno demais (%i bytes)" 5000 region temporary
+            CLOSE_FILE file
+            GOSUB loadFailed
+            RETURN
+        ENDIF
+
+        //Tamanho esperado do formato (cada secao de links tem 192 slots extras)
+        FILE_SEEK file 0 0
+        READ_FROM_FILE file 4 number //Node count
+        count = 28 * number
+        count += 20
+        READ_FROM_FILE file 4 number //Vehicle node count
+        READ_FROM_FILE file 4 number //Ped node count
+        READ_FROM_FILE file 4 number //Navi node count
+        number *= 14
+        count += number
+        READ_FROM_FILE file 4 number //Link count
+        number *= 8
+        count += number
+        count += 1152
+
+        IF count < 20
+        OR count > 8388608
+            PRINT_FORMATTED_NOW "~r~nodes%i.dat: cabecalho invalido" 6000 region
+            CLOSE_FILE file
+            GOSUB loadFailed
+            RETURN
+        ENDIF
+
+        //Aloca memória pro arquivo + folga (e pro tamanho esperado, se o arquivo estiver incompleto)
+        number = temporary
+        IF count > number
+            PRINT_FORMATTED_NOW "~y~nodes%i.dat incompleto (%i de %i bytes), sera completado ao salvar" 6000 region temporary count
+            number = count
+        ENDIF
+        number += 4
+        CLEO_CALL getListPointer 0 (3 curfile) (list) //FileList
+        ALLOCATE_MEMORY number filememory //Escreve nos endereços de memória para arquivos
+
+        IF filememory = 0
+            PRINT_FORMATTED_NOW "~r~nodes%i.dat: sem memoria para carregar o arquivo (%i bytes)" 6000 region number
+            CLOSE_FILE file
+            GOSUB loadFailed
+            RETURN
+        ENDIF
+
+        //Copia todo o arquivo pra memória
         iz = 0
-        WHILE iz < temporary
+        number = temporary
+        number -= 3
+        WHILE iz < number
             FILE_SEEK file iz 0
             READ_FROM_FILE file 4 ix
             WRITE_STRUCT_OFFSET filememory iz 4 ix
+            iz += 4
+        ENDWHILE
+        WHILE iz < temporary
+            FILE_SEEK file iz 0
+            ix = 0
+            READ_FROM_FILE file 1 ix
+            WRITE_STRUCT_OFFSET filememory iz 1 ix
+            iz += 1
+        ENDWHILE
+
+        //Zera a folga/o preenchimento
+        number = temporary
+        IF count > number
+            number = count
+        ENDIF
+        number += 4
+        WHILE iz < number
+            WRITE_STRUCT_OFFSET filememory iz 4 (0)
             iz += 4
         ENDWHILE
 
@@ -374,15 +491,49 @@ GOTO main
         CLOSE_FILE file
 
         GOSUB updateCounts
+
+        //Guarda as contagens do arquivo original (pro save preservar as secoes extras)
+        CLEO_CALL getListPointer 0 (4 curfile) (list)
+        WRITE_STRUCT_OFFSET list 0 4 (nodeCount)
+        CLEO_CALL getListPointer 0 (5 curfile) (list)
+        WRITE_STRUCT_OFFSET list 0 4 (temporary)
+        CLEO_CALL getListPointer 0 (6 curfile) (list)
+        WRITE_STRUCT_OFFSET list 0 4 (naviCount)
+        CLEO_CALL getListPointer 0 (7 curfile) (list)
+        WRITE_STRUCT_OFFSET list 0 4 (linkCount)
+
         PRINT_FORMATTED_NOW "Region: %i, Nodes: %i, VehNodes: %i, Navis: %i, Links: %i" 3000 region nodeCount vehNodeCount naviCount linkCount
     RETURN
 
+    loadFailed:
+        //A area fica vazia: nenhum node/link/navi e criado e nada aponta pro
+        //conteudo do arquivo anterior (que ja foi liberado)
+        CLEO_CALL getListPointer 0 (3 curfile) (list)
+        WRITE_MEMORY list 4 (0) 0
+
+        filememory = 0
+        nodeCount = 0
+        vehNodeCount = 0
+        naviCount = 0
+        linkCount = 0
+    RETURN
+
     unloadFiles:
-        REPEAT 9 count
+        //Libera somente o que esta de fato carregado e zera o slot na hora de
+        //liberar. Era aqui o double free: se uma area nao carregasse (arquivo
+        //ausente, borda do mapa, troca de mascara de areas enquanto o jogador
+        //anda), o slot continuava com o ponteiro da sessao anterior - ja
+        //liberado - e o FREE_MEMORY liberava o mesmo bloco duas vezes.
+        count = 0
+        WHILE count < 9
             CLEO_CALL getListPointer 0 (3 count) (temporary)
             READ_MEMORY temporary 4 0 (number)
-            FREE_MEMORY number
-        ENDREPEAT
+            IF number > 0
+                FREE_MEMORY number
+                WRITE_MEMORY temporary 4 (0) 0
+            ENDIF
+            count += 1
+        ENDWHILE
 
         loaded = FALSE
         SET_THREAD_VAR manipulationScript 21 loaded
@@ -391,6 +542,17 @@ GOTO main
     updateCounts:
         CLEO_CALL getListPointer 0 (3 curfile) (list) //FileList
         READ_MEMORY list 4 0 filememory
+
+        //Sem arquivo carregado nesse slot (borda do mapa, arquivo ausente,
+        //depois do save) nao da' pra ler o cabecalho: era leitura no
+        //endereco 0
+        IF filememory = 0
+            nodeCount = 0
+            vehNodeCount = 0
+            naviCount = 0
+            linkCount = 0
+            RETURN
+        ENDIF
 
         //Pega as variáveis do cabeçalho
         READ_STRUCT_OFFSET filememory 0 4 (nodeCount)
@@ -542,21 +704,25 @@ GOTO main
             iy = 0
             READ_STRUCT_OFFSET_MULTI filememory offset 2 1 (ix, iy)
 
-            IF ix > 128
+            IF ix >= 128
                 ix -= 256
             ENDIF
 
-            IF iy > 128
+            IF iy >= 128
                 iy -= 256
             ENDIF
 
             GET_GROUND_Z_FOR_3D_COORD x y 900.0 z
             GET_WATER_HEIGHT_AT_COORDS x y TRUE angle
 
+            //Modelo da navi (VisualPathEditor.ini, secao [MODELS])
+            GET_LABEL_POINTER modelIds temporary
+            READ_STRUCT_OFFSET temporary 12 4 (number)
+
             IF z >= angle
-                CREATE_OBJECT_NO_SAVE 1318 x y z TRUE FALSE object
+                CREATE_OBJECT_NO_SAVE number x y z TRUE FALSE object
             ELSE
-                CREATE_OBJECT_NO_SAVE 1318 x y angle TRUE FALSE object
+                CREATE_OBJECT_NO_SAVE number x y angle TRUE FALSE object
             ENDIF
 
             SET_OBJECT_COLLISION object 0
@@ -573,10 +739,13 @@ GOTO main
             CLEO_CALL getRadianAngle 0 (ix, iy) (angle)
             SET_OBJECT_ROTATION object 90.0 0.0 angle
 
-            INIT_EXTENDED_OBJECT_VARS object VPEV 7
-            
+            INIT_EXTENDED_OBJECT_VARS object VPEV 8
+
             SET_EXTENDED_OBJECT_VAR object VPEV 3 ix
             SET_EXTENDED_OBJECT_VAR object VPEV 4 iy
+
+            //Area do arquivo a que essa navi pertence (usada na secao 5 do .dat)
+            SET_EXTENDED_OBJECT_VAR object VPEV 8 region
 
             offset -= 4
 
@@ -593,6 +762,7 @@ GOTO main
 
             CLEO_CALL getListPointer 0 (1 curfile) (temporary) //Nodelist
             READ_MEMORY temporary 4 0 list
+            GET_LIST_SIZE list number
 
             //Path Width
             CLEO_CALL getValueFromFlag 0 (iy, 0, 8) (temporary)
@@ -600,15 +770,31 @@ GOTO main
 
             SET_EXTENDED_OBJECT_VAR object VPEV 7 count //NaviID
 
-            GET_LIST_VALUE_BY_INDEX list iz (node)
-            SET_EXTENDED_OBJECT_VAR node VPEV 7 object //Da pro node um pointer pra esse Navi
+            //Aponta a navi pro node conectado (com verificacao)
+            node = 0
+            IF iz >= 0
+            AND iz < number
+                GET_LIST_VALUE_BY_INDEX list iz (node)
+            ENDIF
+
+            IF DOES_OBJECT_EXIST node
+                SET_EXTENDED_OBJECT_VAR node VPEV 7 object //Da pro node um pointer pra esse Navi
+            ENDIF
 
             count += 1
         ENDWHILE
 
-        MARK_MODEL_AS_NO_LONGER_NEEDED 1880
-        MARK_MODEL_AS_NO_LONGER_NEEDED 1877
-        MARK_MODEL_AS_NO_LONGER_NEEDED 1318
+        //Libera os modelos usados (os mesmos do ini)
+        GET_LABEL_POINTER modelIds temporary
+
+        READ_STRUCT_OFFSET temporary 0 4 (number)
+        MARK_MODEL_AS_NO_LONGER_NEEDED number
+
+        READ_STRUCT_OFFSET temporary 4 4 (number)
+        MARK_MODEL_AS_NO_LONGER_NEEDED number
+
+        READ_STRUCT_OFFSET temporary 12 4 (number)
+        MARK_MODEL_AS_NO_LONGER_NEEDED number
     RETURN
 
     createLinks:
@@ -681,17 +867,27 @@ GOTO main
         REPEAT 9 ix
             GET_LIST_VALUE_BY_INDEX loadedregions ix temporary
             IF NOT temporary = -1
-                CLEO_CALL getListPointer 0 (0 ix) (list) //ObjectList
-                READ_MEMORY list 4 0 list
-                GET_LIST_SIZE list number
-                count = 0
-                WHILE count < number
-                    GET_LIST_VALUE_BY_INDEX list count (object)
-                    IF DOES_OBJECT_EXIST object
-                        DELETE_OBJECT object
-                    ENDIF
-                    count += 1
-                ENDWHILE
+                //---------- ObjectList ----------
+                //"temporary" guarda o ENDERECO do slot, pra zerar depois de
+                //liberar. Os tres blocos usavam o tipo 0 (ObjectList): o
+                //DELETE_LIST era feito 3x no MESMO ponteiro (double/triple free
+                //= heap corrompido) e as listas de nodes/navis vazavam.
+                CLEO_CALL getListPointer 0 (0 ix) (temporary)
+                READ_MEMORY temporary 4 0 (list)
+                IF list > 0
+                    GET_LIST_SIZE list number
+                    count = 0
+                    WHILE count < number
+                        GET_LIST_VALUE_BY_INDEX list count (object)
+                        IF DOES_OBJECT_EXIST object
+                            DELETE_OBJECT object
+                        ENDIF
+                        count += 1
+                    ENDWHILE
+
+                    DELETE_LIST list
+                    WRITE_MEMORY temporary 4 (0) 0
+                ENDIF
 
                 SET_THREAD_VAR visualScript 8 (0) //Diz q não tem object
                 SET_THREAD_VAR manipulationScript 14 (0)
@@ -699,22 +895,32 @@ GOTO main
                 IF DOES_OBJECT_EXIST curobject
                     DELETE_OBJECT curobject
                 ENDIF
+                curobject = -1
 
-                DELETE_LIST list
+                //---------- NodeList ----------
+                CLEO_CALL getListPointer 0 (1 ix) (temporary)
+                READ_MEMORY temporary 4 0 (list)
+                IF list > 0
+                    DELETE_LIST list
+                    WRITE_MEMORY temporary 4 (0) 0
+                ENDIF
 
-                CLEO_CALL getListPointer 0 (0 ix) (list) //NodeList
-                READ_MEMORY list 4 0 list
-                DELETE_LIST list
-
-                CLEO_CALL getListPointer 0 (0 ix) (list) //NaviList
-                READ_MEMORY list 4 0 list
-                DELETE_LIST list
+                //---------- NaviList ----------
+                CLEO_CALL getListPointer 0 (2 ix) (temporary)
+                READ_MEMORY temporary 4 0 (list)
+                IF list > 0
+                    DELETE_LIST list
+                    WRITE_MEMORY temporary 4 (0) 0
+                ENDIF
             ENDIF
         ENDREPEAT
 
         GET_LABEL_POINTER interregion iy
-        READ_MEMORY iy 4 0 (temporary) //Interregion List
-        DELETE_LIST temporary
+        READ_MEMORY iy 4 0 (list) //Interregion List
+        IF list > 0
+            DELETE_LIST list
+            WRITE_MEMORY iy 4 (0) 0
+        ENDIF
 
         SET_THREAD_VAR manipulationScript 7 0 //Loading
     RETURN
@@ -735,8 +941,12 @@ GOTO main
             IF DOES_OBJECT_EXIST object
                 IF LOCATE_CHAR_DISTANCE_TO_OBJECT scplayer object 2.0
                     curobject = object
+                    //O modelo da navi vem do ini
+                    GET_LABEL_POINTER modelIds temporary
+                    READ_STRUCT_OFFSET temporary 12 4 (ix)
+
                     GET_OBJECT_MODEL curobject offset
-                    IF offset = 1318
+                    IF offset = ix
                         selecttype = 2
                     ELSE
                         selecttype = 1
@@ -840,8 +1050,11 @@ GOTO main
             GET_LIST_VALUE_BY_INDEX list count (node)
             IF DOES_OBJECT_EXIST node
                 IF LOCATE_CHAR_DISTANCE_TO_OBJECT scplayer node 1.2
+                    GET_LABEL_POINTER modelIds temporary
+                    READ_STRUCT_OFFSET temporary 12 4 (ix)
+
                     GET_OBJECT_MODEL node offset
-                    IF offset = 1318
+                    IF offset = ix
                         selecttype = 2
                     ELSE
                         selecttype = 1
@@ -879,8 +1092,8 @@ GOTO main
                         iy = 0
                         GET_EXTENDED_OBJECT_VAR node VPEV 7 (ix) //NaviID
                         CLEO_CALL setFlagFromValue 0 (iy, 0, 10, ix) (iy)
-                        
-                        GET_EXTENDED_OBJECT_VAR node VPEV 1 (ix) //AreaID
+
+                        GET_EXTENDED_OBJECT_VAR node VPEV 8 (ix) //Area propria da navi
                         CLEO_CALL setFlagFromValue 0 (iy, 10, 6, ix) (iy)
 
                         CLEO_CALL setListValue 0 (temporary, offset, iy) (temporary)
@@ -904,8 +1117,11 @@ GOTO main
             GET_LIST_VALUE_BY_INDEX list count (node)
             IF DOES_OBJECT_EXIST node
                 IF LOCATE_CHAR_DISTANCE_TO_OBJECT scplayer node 2.0
+                    GET_LABEL_POINTER modelIds temporary
+                    READ_STRUCT_OFFSET temporary 12 4 (ix)
+
                     GET_OBJECT_MODEL node offset
-                    IF NOT offset = 1318
+                    IF NOT offset = ix
                         GET_EXTENDED_OBJECT_VAR node VPEV 2 ix //AreaID
                         GET_EXTENDED_OBJECT_VAR node VPEV 3 iy //NodeID
 
@@ -921,6 +1137,11 @@ GOTO main
     saveRegions:
         GET_THREAD_VAR manipulationScript 6 curregion
         SET_THREAD_VAR manipulationScript 7 1 //Loading
+
+        //Zera o contador de falhas
+        GET_LABEL_POINTER saveInfo count
+        WRITE_MEMORY count 4 (0) 0
+
         WAIT 1
 
         curfile = 0
@@ -1001,260 +1222,73 @@ GOTO main
     RETURN
 
     writeFile:
+        //Verifica o arquivo ANTES de abrir/truncar o destino
+        CLEO_CALL checkAreaFile 0 (curfile, region, loadedregions) (temporary)
+
+        IF temporary = 0
+            //Backup do arquivo compilado anterior (nodesN.dat.bak)
+            GOSUB backupFile
+
+            //Desseleciona qualquer node pra evitar crashes
+            GOSUB desselect
+
+            CLEO_CALL writeAreaData 0 (curfile, region) (temporary)
+
+            IF temporary = 0
+                PRINT_FORMATTED_NOW "~g~nodes%i.dat salvo em CLEO/gta3img/compiled" 3000 region
+                CLEAR_LOCAL_VAR_BIT_LVAR modified curfile
+            ELSE
+                GOSUB saveFail
+            ENDIF
+        ELSE
+            GOSUB saveFail
+        ENDIF
+    RETURN
+
+    backupFile:
         GET_LABEL_POINTER stringLabel (temporary)
-
-        GOSUB updateCounts
-
         STRING_FORMAT (temporary) "cleo\gta3img\compiled\nodes%i.dat" region
-        OPEN_FILE $temporary 0x6277 file
 
-        CLEO_CALL updateLinkIDs 0 (curfile) linkCount
+        IF DOES_FILE_EXIST $temporary
+            OPEN_FILE $temporary 0x6272 file
 
-        //Desseleciona qualquer node pra evitar crashes
-        GOSUB desselect
+            IF file > 0
+                GET_FILE_SIZE file number
 
-        //Header
-        number = nodeCount
-        number -= vehNodeCount
-        CLEO_CALL writeFileOffset 0 (file, 0, 4) (nodeCount)      //Node Count
-        CLEO_CALL writeFileOffset 0 (file, 4, 4) (vehNodeCount)   //Vehicle Node Count
-        CLEO_CALL writeFileOffset 0 (file, 8, 4) (number)           //Ped Node Count
-        CLEO_CALL writeFileOffset 0 (file, 12, 4) (naviCount)     //Navi Node Count
-        CLEO_CALL writeFileOffset 0 (file, 16, 4) (linkCount)     //Link Count
+                STRING_FORMAT (temporary) "cleo\gta3img\compiled\nodes%i.dat.bak" region
+                OPEN_FILE $temporary 0x6277 ix
 
-        //Sector 1
-            count = 0
-            WHILE count < nodeCount
-                CLEO_CALL getNodeOffset 0 (count) (offset)
-
-                CLEO_CALL writeFileOffset 0 (file, offset, 4) (27788808)
-                offset += 4
-                CLEO_CALL writeFileOffset 0 (file, offset, 4) (0)
-                offset += 4
-
-                x = 0.0
-                y = 0.0
-                z = 0.0
-
-                //Pega o object da node
-                CLEO_CALL getListPointer 0 (1 curfile) (list) //NodeList
-                READ_MEMORY list 4 0 list
-                GET_LIST_VALUE_BY_INDEX list count (node)
-                
-                GET_OBJECT_COORDINATES node x y z
-                
-                //Coordenadas
-                CLEO_CALL convertToSignedCoord 0 (x) (ix)
-                CLEO_CALL convertToSignedCoord 0 (y) (iy)
-                CLEO_CALL convertToSignedCoord 0 (z) (iz)
-                iz -= 2
-
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (ix)
-                offset += 2
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (iy)
-                offset += 2
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (iz)
-                offset += 2
-
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (0x7FFE) //Heuristic Cost, sempre vai ser isso
-                offset += 2
-
-                //IDs
-                GET_EXTENDED_OBJECT_VAR node VPEV 1 (number) //LinkID
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (number)
-                offset += 2
-
-                GET_EXTENDED_OBJECT_VAR node VPEV 2 (number) //AreaID
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (number)
-                offset += 2
-
-                GET_EXTENDED_OBJECT_VAR node VPEV 3 (number) //NodeID
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (number)
-                offset += 2
-
-                //Misc
-                GET_EXTENDED_OBJECT_VAR node VPEV 4 (number) //Path Width
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (number)
-                offset += 1
-
-                GET_EXTENDED_OBJECT_VAR node VPEV 5 (number) //Floodfill
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (number)
-                offset += 1
-
-                GET_EXTENDED_OBJECT_VAR node VPEV 6 (number) //Flags
-
-                GET_EXTENDED_OBJECT_VAR node VPEV 8 (temporary) //LinkCount
-                CLEO_CALL setFlagFromValue 0 (number, 0, 4, temporary) (number)
-                temporary = 0
-
-                CLEO_CALL writeFileOffset 0 (file, offset, 4) (number)
-                count += 1
-            ENDWHILE
-        //
-
-        //Sector 2
-            count = 0
-            WHILE count < naviCount
-                CLEO_CALL getNaviOffset 0 (count, nodeCount) (offset)
-
-                //Pega o object da navinode
-                CLEO_CALL getListPointer 0 (2 curfile) (list) //NaviList
-                READ_MEMORY list 4 0 list
-
-                GET_LIST_VALUE_BY_INDEX list count (node)
-                GET_OBJECT_COORDINATES node x y z
-
-                //Coordenadas
-                CLEO_CALL convertToSignedCoord 0 (x) (ix)
-                CLEO_CALL convertToSignedCoord 0 (y) (iy)
-
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (ix)
-                offset += 2
-
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (iy)
-                offset += 2
-
-                //AreaID e NodeID conectados
-                GET_EXTENDED_OBJECT_VAR node VPEV 1 (number) //LinkID
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (number)
-                offset += 2
-
-                GET_EXTENDED_OBJECT_VAR node VPEV 2 (number) //NodeID
-                CLEO_CALL writeFileOffset 0 (file, offset, 2) (number)
-                offset += 2
-
-                //Em caso do ID ser -1, abortar totalmente o salvamento
-                IF number = -1
-                    PRINT_FORMATTED_NOW "~r~Ha navis que nao estao conectadas a nenhum node!" 3000
-
-                    GET_LABEL_POINTER functionz temporary
-                    WRITE_MEMORY temporary 4 (0) 0
-
-                    SET_THREAD_VAR manipulationScript 7 0 //Loading
-                    GOTO main
+                IF ix > 0
+                    iz = 0
+                    count = number
+                    count -= 3
+                    WHILE iz < count
+                        FILE_SEEK file iz 0
+                        READ_FROM_FILE file 4 iy
+                        WRITE_TO_FILE ix 4 iy
+                        iz += 4
+                    ENDWHILE
+                    WHILE iz < number
+                        FILE_SEEK file iz 0
+                        iy = 0
+                        READ_FROM_FILE file 1 iy
+                        WRITE_TO_FILE ix 1 iy
+                        iz += 1
+                    ENDWHILE
+                    CLOSE_FILE ix
                 ENDIF
 
-                //Direções
-                GET_OBJECT_HEADING node angle
-                CLEO_CALL getSignedAngle 0 (angle) (ix, iy)
+                CLOSE_FILE file
+            ENDIF
+        ENDIF
+    RETURN
 
-                CLEO_CALL writeFileOffset 0 (file, offset, 1) (ix)
-                offset += 1
-
-                CLEO_CALL writeFileOffset 0 (file, offset, 1) (iy)
-                offset += 1
-
-                GET_EXTENDED_OBJECT_VAR node VPEV 3 number
-                GET_EXTENDED_OBJECT_VAR node VPEV 4 temporary
-
-                //Flags
-                GET_EXTENDED_OBJECT_VAR node VPEV 5 (number) //Flags
-                CLEO_CALL writeFileOffset 0 (file, offset, 4) (number)
-                offset += 4
-
-                count += 1
-            ENDWHILE
-        //
-
-        //Sector 3&5&6
-            count = 0
-            WHILE count < naviCount
-                CLEO_CALL getLinkOffset 0 (count, nodeCount, naviCount) (offset)
-
-                //Pega o object da navinode
-                CLEO_CALL getListPointer 0 (2 curfile) (list) //NaviList
-                READ_MEMORY list 4 0 list
-
-                count += 1
-            ENDWHILE
-
-            count = 0
-            iz = 0
-            WHILE count < nodeCount
-                //Pega o object da node
-                CLEO_CALL getListPointer 0 (1 curfile) (list) //NodeList
-                READ_MEMORY list 4 0 list
-                GET_LIST_VALUE_BY_INDEX list count (node)
-
-                GET_EXTENDED_OBJECT_VAR node VPEV 8 (temporary)
-
-                number = 0
-                WHILE number < temporary
-                    //Sector 3
-                    CLEO_CALL getLinkOffset 0 (iz, nodeCount, naviCount) (offset)
-
-                    GET_EXTENDED_OBJECT_VAR node VPEV 9 (list) //Areas
-
-                    ix = 0
-                    GET_LIST_VALUE_BY_INDEX list number (ix)
-
-                    CLEO_CALL writeFileOffset 0 (file, offset, 2) (ix)
-                    GET_EXTENDED_OBJECT_VAR node VPEV 10 (list) //Nodes
-                    offset += 2
-
-                    iy = 0
-                    GET_LIST_VALUE_BY_INDEX list number (iy)
-
-                    //Em caso do ID ser -1, abortar totalmente o salvamento
-                    IF number = -1
-                        PRINT_FORMATTED_NOW "~r~Ha nodes com links invalidos!" 3000
-
-                        GET_LABEL_POINTER functionz temporary
-                        WRITE_MEMORY temporary 4 (0) 0
-
-                        SET_THREAD_VAR manipulationScript 7 0 //Loading
-                        GOTO main
-                    ENDIF
-
-                    CLEO_CALL writeFileOffset 0 (file, offset, 2) (iy)
-
-                    //Sector 5
-                    CLEO_CALL getNaviLinkOffset 0 (iz, nodeCount, naviCount, linkCount) (offset)
-                    GET_EXTENDED_OBJECT_VAR node VPEV 11 (list)
-
-                    ix = 0
-                    GET_LIST_VALUE_BY_INDEX list number (ix)
-                    CLEO_CALL writeFileOffset 0 (file, offset, 2) (ix)
-
-                    //Sector 6
-                    CLEO_CALL getLinkLengthOffset 0 (iz, nodeCount, naviCount, linkCount) (offset)
-                    GET_EXTENDED_OBJECT_VAR node VPEV 12 (list)
-
-                    ix = 0
-                    GET_LIST_VALUE_BY_INDEX list number (ix)
-                    
-                    CLEO_CALL writeFileOffset 0 (file, offset, 1) (ix)
-
-                    number += 1
-                    iz += 1
-                ENDWHILE
-
-                count += 1
-            ENDWHILE
-        //
-
-        //Sector 4
-            offset = 0
-            number = 4 * linkCount
-            offset += number
-            number = 28 * nodeCount
-            offset += number
-            number = 14 * naviCount
-            offset += number
-            offset += 20
-            REPEAT 192 count
-                CLEO_CALL writeFileOffset 0 (file, offset, 1) (0xFF)
-                offset += 1
-                CLEO_CALL writeFileOffset 0 (file, offset, 1) (0xFF)
-                offset += 1
-                CLEO_CALL writeFileOffset 0 (file, offset, 1) (0x00)
-                offset += 1
-                CLEO_CALL writeFileOffset 0 (file, offset, 1) (0x00)
-                offset += 1
-            ENDREPEAT
-        //
-
-        CLOSE_FILE file
+    saveFail:
+        GET_LABEL_POINTER saveInfo count
+        READ_MEMORY count 4 0 (number)
+        number += 1
+        GET_LABEL_POINTER saveInfo count
+        WRITE_MEMORY count 4 number 0
     RETURN
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1343,7 +1377,7 @@ SCRIPT_END
         DRAW_STRING "Visual Path Editor by LightVelox" DRAW_EVENT_AFTER_DRAWING 56.0 288.0 0.15 0.325 TRUE FONT_MENU
 
         IF selecttype = 2 //NaviNodes
-            DRAW_STRING "AreaID:" DRAW_EVENT_AFTER_DRAWING 9.0 34.0 0.3 0.65 TRUE FONT_MENU
+            DRAW_STRING "Node:" DRAW_EVENT_AFTER_DRAWING 9.0 34.0 0.3 0.65 TRUE FONT_MENU
             DRAW_STRING "NaviID:" DRAW_EVENT_AFTER_DRAWING 9.0 47.0 0.3 0.65 TRUE FONT_MENU
             DRAW_STRING "Path Width:" DRAW_EVENT_AFTER_DRAWING 9.0 60.0 0.3 0.65 TRUE FONT_MENU
 
@@ -1363,9 +1397,15 @@ SCRIPT_END
             IF NOT object = 0
             AND DOES_OBJECT_EXIST object
                 //Desenha os valores
+                //Node conectado (AreaID - NodeID); -1 = nenhum
                 GET_EXTENDED_OBJECT_VAR object VPEV 1 value
-                STRING_FORMAT txt "%i" value
-                DRAW_STRING $txt DRAW_EVENT_AFTER_DRAWING 115.0 34.0 0.3 0.65 TRUE FONT_MENU
+                GET_EXTENDED_OBJECT_VAR object VPEV 2 value2
+                IF value = -1
+                    DRAW_STRING "---" DRAW_EVENT_AFTER_DRAWING 115.0 34.0 0.3 0.65 TRUE FONT_MENU
+                ELSE
+                    STRING_FORMAT txt "%i-%i" value value2
+                    DRAW_STRING $txt DRAW_EVENT_AFTER_DRAWING 115.0 34.0 0.3 0.65 TRUE FONT_MENU
+                ENDIF
 
                 GET_EXTENDED_OBJECT_VAR object VPEV 7 value
                 STRING_FORMAT txt "%i" value
@@ -1423,6 +1463,9 @@ SCRIPT_END
                 //Desenha a caixa de seleção
                 IF selected < 6
                     SWITCH selected
+                        CASE 0
+                            y = 60.0
+                        BREAK
                         CASE 1
                             y = 97.0
                         BREAK
@@ -1468,10 +1511,18 @@ SCRIPT_END
 
                     IF IS_KEY_JUST_PRESSED VK_KEY_L
                         SWITCH selected
+                            CASE 0
+                                //Path Width
+                                GET_EXTENDED_OBJECT_VAR object VPEV 6 value
+                                IF value < 255
+                                    value += 1
+                                    SET_EXTENDED_OBJECT_VAR object VPEV 6 value
+                                ENDIF
+                            BREAK
                             CASE 1
                                 //LeftLanes
                                 CLEO_CALL getValueFromFlag 0 (flags, 8, 3) (value)
-                                IF value < 15
+                                IF value < 7
                                     value += 1
                                     CLEO_CALL setFlagFromValue 0 (flags, 8, 3, value) (flags)
                                 ENDIF
@@ -1479,7 +1530,7 @@ SCRIPT_END
                             CASE 2
                                 //RightLanes
                                 CLEO_CALL getValueFromFlag 0 (flags, 11, 3) (value)
-                                IF value < 15
+                                IF value < 7
                                     value += 1
                                     CLEO_CALL setFlagFromValue 0 (flags, 11, 3, value) (flags)
                                 ENDIF
@@ -1521,6 +1572,14 @@ SCRIPT_END
 
                     IF IS_KEY_JUST_PRESSED VK_KEY_J
                         SWITCH selected
+                            CASE 0
+                                //Path Width
+                                GET_EXTENDED_OBJECT_VAR object VPEV 6 value
+                                IF value > 0
+                                    value -= 1
+                                    SET_EXTENDED_OBJECT_VAR object VPEV 6 value
+                                ENDIF
+                            BREAK
                             CASE 1
                                 //LeftLanes
                                 CLEO_CALL getValueFromFlag 0 (flags, 8, 3) (value)
@@ -1732,6 +1791,9 @@ SCRIPT_END
                     IF selected = 4
                         math = 13 //Highway
                         SET_LOCAL_VAR_BIT_LVAR flags math
+
+                        math = 12 //Deixa de ser "nao rodovia"
+                        CLEAR_LOCAL_VAR_BIT_LVAR flags math
                     ENDIF
                     IF selected = 5
                         math = 21 //Parking
@@ -1754,38 +1816,20 @@ SCRIPT_END
                     //Path Width
                     IF selected = 1
                         GET_EXTENDED_OBJECT_VAR object VPEV 4 value
-                        value += 1
-                        SET_EXTENDED_OBJECT_VAR object VPEV 4 value
+                        IF value < 255
+                            value += 1
+                            SET_EXTENDED_OBJECT_VAR object VPEV 4 value
+                        ENDIF
                     ENDIF
                     
-                    //Traffic Level
+                    //Traffic Level (00 FULL, 10 HIGH, 01 MEDIUM, 11 LOW)
                     IF selected = 3
-                        math = 4
-                        IF IS_LOCAL_VAR_BIT_SET_LVAR flags math
-                            math = 5
-                            IF IS_LOCAL_VAR_BIT_SET_LVAR flags math
-                                math = 4
-                                CLEAR_LOCAL_VAR_BIT_LVAR flags math
-
-                                math = 5
-                                SET_LOCAL_VAR_BIT_LVAR flags math
-                            ELSE
-                                math = 4
-                                CLEAR_LOCAL_VAR_BIT_LVAR flags math
-
-                                math = 5
-                                CLEAR_LOCAL_VAR_BIT_LVAR flags math
-                            ENDIF
-                        ELSE
-                            math = 5
-                            IF IS_LOCAL_VAR_BIT_SET_LVAR flags math
-                                math = 4
-                                SET_LOCAL_VAR_BIT_LVAR flags math
-
-                                math = 5
-                                CLEAR_LOCAL_VAR_BIT_LVAR flags math
-                            ENDIF
+                        CLEO_CALL getValueFromFlag 0 (flags, 4, 2) (value)
+                        value += 1
+                        IF value > 3
+                            value = 0
                         ENDIF
+                        CLEO_CALL setFlagFromValue 0 (flags, 4, 2, value) (flags)
                     ENDIF
 
                     //Spawn Chance
@@ -1827,6 +1871,9 @@ SCRIPT_END
                     IF selected = 4
                         math = 13 //Highway
                         CLEAR_LOCAL_VAR_BIT_LVAR flags math
+
+                        math = 12 //Volta a ser "nao rodovia"
+                        SET_LOCAL_VAR_BIT_LVAR flags math
                     ENDIF
                     IF selected = 5
                         math = 21 //Parking
@@ -1853,34 +1900,14 @@ SCRIPT_END
                         SET_EXTENDED_OBJECT_VAR object VPEV 4 value
                     ENDIF
 
-                    //Traffic Level
+                    //Traffic Level (00 FULL, 10 HIGH, 01 MEDIUM, 11 LOW)
                     IF selected = 3
-                        math = 4
-                        IF IS_LOCAL_VAR_BIT_SET_LVAR flags math
-                            math = 5
-                            IF NOT IS_LOCAL_VAR_BIT_SET_LVAR flags math
-                                math = 4
-                                CLEAR_LOCAL_VAR_BIT_LVAR flags math
-
-                                math = 5
-                                SET_LOCAL_VAR_BIT_LVAR flags math
-                            ENDIF
-                        ELSE
-                            math = 5
-                            IF IS_LOCAL_VAR_BIT_SET_LVAR flags math
-                                math = 4
-                                SET_LOCAL_VAR_BIT_LVAR flags math
-
-                                math = 5
-                                SET_LOCAL_VAR_BIT_LVAR flags math
-                            ELSE
-                                math = 4
-                                SET_LOCAL_VAR_BIT_LVAR flags math
-
-                                math = 5
-                                CLEAR_LOCAL_VAR_BIT_LVAR flags math
-                            ENDIF
+                        CLEO_CALL getValueFromFlag 0 (flags, 4, 2) (value)
+                        value -= 1
+                        IF value < 0
+                            value = 3
                         ENDIF
+                        CLEO_CALL setFlagFromValue 0 (flags, 4, 2, value) (flags)
                     ENDIF
 
                     //Spawn Chance
@@ -2050,8 +2077,14 @@ SCRIPT_END
                 selected += 1
 
                 //Desenha a info do NaviNode na UI
-                STRING_FORMAT txt "%i-%i" value math //AreaID - NodeID
-                DRAW_STRING $txt DRAW_EVENT_AFTER_DRAWING 103.0 y 0.3 0.65 TRUE FONT_MENU //Navi
+                IF value2 = -1
+                OR value2 = 0
+                OR value2 = 65535
+                    DRAW_STRING "---" DRAW_EVENT_AFTER_DRAWING 105.0 y 0.3 0.65 TRUE FONT_MENU //Navi (nenhuma)
+                ELSE
+                    STRING_FORMAT txt "%i-%i" value math //AreaID - NodeID
+                    DRAW_STRING $txt DRAW_EVENT_AFTER_DRAWING 103.0 y 0.3 0.65 TRUE FONT_MENU //Navi
+                ENDIF
 
                 count += 1
             ENDWHILE
@@ -2209,11 +2242,19 @@ SCRIPT_END
                             SET_EXTENDED_OBJECT_VAR object VPEV 8 links
                             SET_THREAD_VAR visualScript 4 links
 
+                            //"as" tem que virar o PONTEIRO do buffer do arquivo
+                            //(READ_MEMORY). Sem isso o codigo lia e gravava 16
+                            //bytes depois do slot, corrompendo o ponteiro do
+                            //buffer de OUTRO arquivo - e o FREE_MEMORY do unload
+                            //liberava esse ponteiro torto = crash no heap
                             GET_THREAD_VAR mainscript 4 (as)
                             CLEO_CALL getListPointer 0 (3 as) (as)
-                            READ_STRUCT_OFFSET as 16 4 (ns)
-                            ns -= 1
-                            WRITE_STRUCT_OFFSET as 16 4 (ns)
+                            READ_MEMORY as 4 0 (as)
+                            IF as > 0
+                                READ_STRUCT_OFFSET as 16 4 (ns)
+                                ns -= 1
+                                WRITE_STRUCT_OFFSET as 16 4 (ns)
+                            ENDIF
                             
                             count += 1
                         ENDIF
@@ -2356,7 +2397,7 @@ SCRIPT_END
                     IF IS_KEY_JUST_PRESSED VK_INSERT
                         count -= 1
 
-                        IF links < 16
+                        IF links < 15 //O formato guarda no maximo 15 links por node
                             links += 1
                             SET_THREAD_VAR visualScript 4 links
                             SET_EXTENDED_OBJECT_VAR object VPEV 8 links
@@ -2375,9 +2416,12 @@ SCRIPT_END
 
                             GET_THREAD_VAR mainscript 4 (as)
                             CLEO_CALL getListPointer 0 (3 as) (as)
-                            READ_STRUCT_OFFSET as 16 4 (ns)
-                            ns += 1
-                            WRITE_STRUCT_OFFSET as 16 4 (ns)
+                            READ_MEMORY as 4 0 (as)
+                            IF as > 0
+                                READ_STRUCT_OFFSET as 16 4 (ns)
+                                ns += 1
+                                WRITE_STRUCT_OFFSET as 16 4 (ns)
+                            ENDIF
                         ENDIF
 
                         count += 1
@@ -2511,7 +2555,7 @@ SCRIPT_END
         LVAR_INT value
         LVAR_FLOAT var
 
-        IF value > 32766
+        IF value > 32767
             value -= 65536
         ENDIF
 
@@ -2526,6 +2570,14 @@ SCRIPT_END
         LVAR_INT value
 
         var *= 8.0
+
+        //Arredonda pro valor mais próximo (o formato guarda multiplos de 0.125)
+        IF var >= 0.0
+            var += 0.5
+        ELSE
+            var -= 0.5
+        ENDIF
+
         value =# var
         IF value < 0
             value += 65536
@@ -2563,14 +2615,20 @@ SCRIPT_END
         ty =# y
         ty *= -1
 
-        IF ty < -100
-            ty += 256
-        ENDIF
-
         tx =# x
 
+        //A direcao do trafego vai de -100 a 100
+        IF ty < -100
+            ty = -100
+        ENDIF
+        IF ty > 100
+            ty = 100
+        ENDIF
         IF tx < -100
-            tx += 256
+            tx = -100
+        ENDIF
+        IF tx > 100
+            tx = 100
         ENDIF
     CLEO_RETURN 0 tx ty
     }
@@ -3367,8 +3425,12 @@ SCRIPT_END
 
             CREATE_LIST DATATYPE_INT list
             SET_EXTENDED_OBJECT_VAR object VPEV 11 list //LinkNaviList
-            LIST_ADD list 0
-            LIST_ADD list 0
+            count2 = 0
+            IF NOT type = 1 //Pedestres usam 0; veiculos usam 0xFFFF ("nenhuma navi")
+                count2 = 65535
+            ENDIF
+            LIST_ADD list count2
+            LIST_ADD list count2
 
             CREATE_LIST DATATYPE_INT list
             SET_EXTENDED_OBJECT_VAR object VPEV 12 list //LinkLengthList
@@ -3386,11 +3448,12 @@ SCRIPT_END
             READ_STRUCT_OFFSET listptr 36 4 (count) //Flags
             IF NOT count = 0
                 SET_EXTENDED_OBJECT_VAR object VPEV 6 count
+            ENDIF
 
-                WRITE_STRUCT_OFFSET listptr 32 4 (count) //PathWidth
-                IF count < 1024
-                    SET_EXTENDED_OBJECT_VAR object VPEV 4 count
-                ENDIF
+            READ_STRUCT_OFFSET listptr 32 4 (count) //PathWidth
+            IF count > 0
+            AND count <= 255
+                SET_EXTENDED_OBJECT_VAR object VPEV 4 count
             ENDIF
 
             linkCount += 2
@@ -3407,16 +3470,18 @@ SCRIPT_END
             flags = 0
 
             //Seta o número de lanes para 1 para ambos os lados, ruas normais
-            CLEO_CALL setFlagFromValue 0 (flags, 8, 10, 1) flags
-            CLEO_CALL setFlagFromValue 0 (flags, 11, 13, 1) flags
+            CLEO_CALL setFlagFromValue 0 (flags, 8, 3, 1) flags
+            CLEO_CALL setFlagFromValue 0 (flags, 11, 3, 1) flags
 
-            INIT_EXTENDED_OBJECT_VARS object VPEV 7
+            INIT_EXTENDED_OBJECT_VARS object VPEV 8
 
-            SET_EXTENDED_OBJECT_VAR object VPEV 1 region //AreaID
+            SET_EXTENDED_OBJECT_VAR object VPEV 1 -1 //AreaID do node conectado (-1 = nenhum)
 
-            SET_EXTENDED_OBJECT_VAR object VPEV 2 0 //NodeID
+            SET_EXTENDED_OBJECT_VAR object VPEV 2 -1 //NodeID conectado (-1 = nenhum)
 
             SET_EXTENDED_OBJECT_VAR object VPEV 5 flags //Flags
+
+            SET_EXTENDED_OBJECT_VAR object VPEV 8 region //Area propria da navi
 
             //Path Width
             SET_EXTENDED_OBJECT_VAR object VPEV 6 0
@@ -3478,6 +3543,738 @@ SCRIPT_END
     }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+    {
+    getLoadedAreaCount: //(loadedregions, area, mode) -> quantidade (ou -1 se a area nao esta carregada)
+        LVAR_INT loadedregions area mode count size curfile var filemem offset
+
+        count = -1
+
+        IF NOT loadedregions = 0
+            GET_LIST_SIZE loadedregions size
+            curfile = 0
+            WHILE curfile < size
+                var = 0
+                GET_LIST_VALUE_BY_INDEX loadedregions curfile (var)
+
+                IF var = area
+                    CLEO_CALL getListPointer 0 (3 curfile) (filemem)
+                    READ_MEMORY filemem 4 0 (filemem)
+
+                    IF filemem > 0
+                        offset = 0
+                        IF mode = 1
+                            offset = 12 //Navi count do cabecalho
+                        ENDIF
+                        READ_STRUCT_OFFSET filemem offset 4 (count)
+                    ENDIF
+
+                    curfile = size //sai do loop
+                ENDIF
+                curfile += 1
+            ENDWHILE
+        ENDIF
+    CLEO_RETURN 0 count
+    }
+
+    {
+    getLinkLength: //(object, objectAlvo) -> comprimento do link (0-255)
+        LVAR_INT object target value
+        LVAR_FLOAT x y z x2 y2 z2 dist
+
+        GET_OBJECT_COORDINATES object x y z
+        GET_OBJECT_COORDINATES target x2 y2 z2
+        GET_DISTANCE_BETWEEN_COORDS_2D x y x2 y2 dist
+
+        value =# dist
+        IF value < 0
+            value = 0
+        ENDIF
+        IF value > 255
+            value = 255
+        ENDIF
+    CLEO_RETURN 0 value
+    }
+
+    {
+    checkAreaFile: //(curfile, area, loadedregions) -> status (0 = tudo certo)
+        LVAR_INT curfile area loadedregions status
+        LVAR_INT list list2 list3 list4 list5 filemem
+        LVAR_INT index count links obj value
+        LVAR_INT nodeCount vehNodeCount naviCount linkCount areaCount
+        LVAR_INT linkArea linkNode naviRef naviId naviArea
+        LVAR_INT fewLinks wideWidth
+        LVAR_FLOAT x y z
+
+        status = 0
+        fewLinks = 0
+        wideWidth = 0
+
+        //Listas do arquivo
+        CLEO_CALL getListPointer 0 (1 curfile) (list) //NodeList
+        READ_MEMORY list 4 0 (list)
+
+        CLEO_CALL getListPointer 0 (2 curfile) (list2) //NaviList
+        READ_MEMORY list2 4 0 (list2)
+
+        IF list = 0
+        OR list2 = 0
+            PRINT_FORMATTED_NOW "~r~nodes%i.dat: area nao carregada" 6000 area
+            status = 12
+        ENDIF
+
+        IF status = 0
+            GET_LIST_SIZE list nodeCount
+            GET_LIST_SIZE list2 naviCount
+
+            CLEO_CALL getListPointer 0 (3 curfile) (filemem) //FileList (cabecalho)
+            READ_MEMORY filemem 4 0 (filemem)
+            READ_STRUCT_OFFSET filemem 4 4 (vehNodeCount)
+
+            CLEO_CALL updateLinkIDs 0 (curfile) (linkCount)
+
+            //Contagens que o formato nao aceita
+            IF nodeCount > 65535
+            OR naviCount > 1024
+            OR linkCount > 65535
+            OR vehNodeCount > nodeCount
+                PRINT_FORMATTED_NOW "~r~nodes%i.dat: contagens invalidas (nodes %i, navis %i, links %i)" 9000 area nodeCount naviCount linkCount
+                status = 1
+            ENDIF
+        ENDIF
+
+        //Nodes
+        IF status = 0
+            index = 0
+            WHILE index < nodeCount
+                obj = 0
+                GET_LIST_VALUE_BY_INDEX list index (obj)
+
+                IF DOES_OBJECT_EXIST obj
+                    links = 0
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 8 (links)
+
+                    value = 0
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 4 (value) //Path Width
+                    IF value > 255
+                        wideWidth += 1
+                    ENDIF
+
+                    IF links > 15
+                        PRINT_FORMATTED_NOW "~r~nodes%i.dat: node %i tem %i links (o formato so aceita 15)" 9000 area index links
+                        status = 5
+                    ENDIF
+
+                    IF links < 2
+                        fewLinks += 1
+                    ENDIF
+
+                    //Coordenadas (int16 dividido por 8)
+                    GET_OBJECT_COORDINATES obj x y z
+                    IF x > 4095.875
+                    OR x < -4095.875
+                    OR y > 4095.875
+                    OR y < -4095.875
+                    OR z > 4095.875
+                    OR z < -4095.875
+                        PRINT_FORMATTED_NOW "~r~nodes%i.dat: node %i fora dos limites de coordenadas" 9000 area index
+                        status = 8
+                    ENDIF
+
+                    //Links
+                    IF status = 0
+                    AND links > 0
+                        GET_EXTENDED_OBJECT_VAR obj VPEV 9 (list3)  //LinkAreaList
+                        GET_EXTENDED_OBJECT_VAR obj VPEV 10 (list4) //LinkNodeList
+                        GET_EXTENDED_OBJECT_VAR obj VPEV 11 (list5) //LinkNaviList
+
+                        count = 0
+                        WHILE count < links
+                            linkArea = 0
+                            linkNode = 0
+                            GET_LIST_VALUE_BY_INDEX list3 count (linkArea)
+                            GET_LIST_VALUE_BY_INDEX list4 count (linkNode)
+
+                            IF linkArea < 0
+                            OR linkArea > 63
+                                PRINT_FORMATTED_NOW "~r~nodes%i.dat: node %i link %i com area invalida (%i)" 9000 area index count linkArea
+                                status = 6
+                            ELSE
+                                IF linkArea = area
+                                    IF linkNode < 0
+                                    OR linkNode >= nodeCount
+                                        PRINT_FORMATTED_NOW "~r~nodes%i.dat: node %i link %i aponta pra node inexistente (%i)" 9000 area index count linkNode
+                                        status = 6
+                                    ENDIF
+                                ELSE
+                                    CLEO_CALL getLoadedAreaCount 0 (loadedregions, linkArea, 0) (areaCount)
+                                    IF areaCount >= 0
+                                        IF linkNode < 0
+                                        OR linkNode >= areaCount
+                                            PRINT_FORMATTED_NOW "~r~nodes%i.dat: node %i link %i aponta pra node inexistente (area %i, node %i)" 9000 area index count linkArea linkNode
+                                            status = 6
+                                        ENDIF
+                                    ELSE
+                                        IF linkNode < 0
+                                            PRINT_FORMATTED_NOW "~r~nodes%i.dat: node %i link %i aponta pra node inexistente (%i)" 9000 area index count linkNode
+                                            status = 6
+                                        ENDIF
+                                    ENDIF
+                                ENDIF
+
+                                //Referencia de navi do link
+                                IF status = 0
+                                    naviRef = 0
+                                    GET_LIST_VALUE_BY_INDEX list5 count (naviRef)
+
+                                    IF NOT naviRef = -1
+                                    AND NOT naviRef = 0
+                                    AND NOT naviRef = 65535
+                                        naviId = 0
+                                        naviArea = 0
+                                        CLEO_CALL getValueFromFlag 0 (naviRef, 0, 10) (naviId)
+                                        CLEO_CALL getValueFromFlag 0 (naviRef, 10, 6) (naviArea)
+
+                                        IF naviArea = area
+                                            IF naviId >= naviCount
+                                                PRINT_FORMATTED_NOW "~r~nodes%i.dat: node %i link %i aponta pra navi inexistente (%i)" 9000 area index count naviId
+                                                status = 13
+                                            ENDIF
+                                        ELSE
+                                            CLEO_CALL getLoadedAreaCount 0 (loadedregions, naviArea, 1) (areaCount)
+                                            IF areaCount >= 0
+                                            AND naviId >= areaCount
+                                                PRINT_FORMATTED_NOW "~y~nodes%i.dat: node %i link %i aponta pra navi inexistente (area %i, navi %i)" 9000 area index count naviArea naviId
+                                            ENDIF
+                                        ENDIF
+                                    ENDIF
+                                ENDIF
+                            ENDIF
+
+                            count += 1
+                        ENDWHILE
+                    ENDIF
+                ELSE
+                    PRINT_FORMATTED_NOW "~r~nodes%i.dat: node %i sem objeto (recarregue a area)" 9000 area index
+                    status = 9
+                ENDIF
+
+                index += 1
+            ENDWHILE
+        ENDIF
+
+        //NaviNodes
+        IF status = 0
+        AND naviCount > 0
+            index = 0
+            WHILE index < naviCount
+                obj = 0
+                GET_LIST_VALUE_BY_INDEX list2 index (obj)
+
+                IF DOES_OBJECT_EXIST obj
+                    naviArea = 0
+                    naviId = 0
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 1 (naviArea) //Area do node conectado
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 2 (naviId)   //Node conectado
+
+                    IF naviId < 0
+                        PRINT_FORMATTED_NOW "~r~nodes%i.dat: navi %i nao esta conectada a nenhum node" 9000 area index
+                        status = 7
+                    ELSE
+                        IF naviArea = area
+                            IF naviId >= nodeCount
+                                PRINT_FORMATTED_NOW "~r~nodes%i.dat: navi %i aponta pra node inexistente (%i)" 9000 area index naviId
+                                status = 7
+                            ENDIF
+                        ELSE
+                            CLEO_CALL getLoadedAreaCount 0 (loadedregions, naviArea, 0) (areaCount)
+                            IF areaCount >= 0
+                                IF naviId >= areaCount
+                                    PRINT_FORMATTED_NOW "~r~nodes%i.dat: navi %i aponta pra node inexistente (area %i, node %i)" 9000 area index naviArea naviId
+                                    status = 7
+                                ENDIF
+                            ENDIF
+                        ENDIF
+                    ENDIF
+
+                    GET_OBJECT_COORDINATES obj x y z
+                    IF x > 4095.875
+                    OR x < -4095.875
+                    OR y > 4095.875
+                    OR y < -4095.875
+                        PRINT_FORMATTED_NOW "~r~nodes%i.dat: navi %i fora dos limites de coordenadas" 9000 area index
+                        status = 8
+                    ENDIF
+                ELSE
+                    PRINT_FORMATTED_NOW "~r~nodes%i.dat: navi %i sem objeto (recarregue a area)" 9000 area index
+                    status = 9
+                ENDIF
+
+                index += 1
+            ENDWHILE
+        ENDIF
+
+        //Avisos (nao impedem o salvamento)
+        IF fewLinks > 0
+            PRINT_FORMATTED_NOW "~y~nodes%i.dat: %i node(s) com menos de 2 links (o jogo pode travar)" 9000 area fewLinks
+        ENDIF
+        IF wideWidth > 0
+            PRINT_FORMATTED_NOW "~y~nodes%i.dat: %i node(s) com path width maior que 255 (sera limitado)" 9000 area wideWidth
+        ENDIF
+    CLEO_RETURN 0 status
+    }
+
+    {
+    writeAreaData: //(curfile, area) -> status (0 = gravado, 1 = nao abriu, 2 = tamanho errado)
+        LVAR_INT curfile area status
+        LVAR_INT list list2 list3 filemem file
+        LVAR_INT count count2 obj target links ix iy iz
+        LVAR_INT nodeCount vehNodeCount naviCount linkCount linkId
+        LVAR_INT origNodeCount origNaviCount origLinkCount origFileSize
+        LVAR_INT offset srcBase size
+        LVAR_FLOAT x y z
+
+        status = 0
+
+        //Contagens atuais (as listas mandam)
+        CLEO_CALL getListPointer 0 (1 curfile) (list) //NodeList
+        READ_MEMORY list 4 0 (list)
+        GET_LIST_SIZE list nodeCount
+
+        CLEO_CALL getListPointer 0 (2 curfile) (list2) //NaviList
+        READ_MEMORY list2 4 0 (list2)
+        GET_LIST_SIZE list2 naviCount
+
+        CLEO_CALL getListPointer 0 (3 curfile) (list3) //FileList
+        READ_MEMORY list3 4 0 (filemem)
+        READ_STRUCT_OFFSET filemem 4 4 (vehNodeCount)
+
+        CLEO_CALL updateLinkIDs 0 (curfile) (linkCount)
+
+        //Contagens do arquivo que foi carregado (pra preservar as secoes extras)
+        CLEO_CALL getListPointer 0 (4 curfile) (list3)
+        READ_MEMORY list3 4 0 (origNodeCount)
+
+        CLEO_CALL getListPointer 0 (5 curfile) (list3)
+        READ_MEMORY list3 4 0 (origFileSize)
+
+        CLEO_CALL getListPointer 0 (6 curfile) (list3)
+        READ_MEMORY list3 4 0 (origNaviCount)
+
+        CLEO_CALL getListPointer 0 (7 curfile) (list3)
+        READ_MEMORY list3 4 0 (origLinkCount)
+
+        GET_LABEL_POINTER stringLabel (size)
+        STRING_FORMAT (size) "cleo\gta3img\compiled\nodes%i.dat" area
+
+        IF OPEN_FILE $size 0x6277 file
+            offset = 0
+
+            //================== CABECALHO ==================
+            iy = nodeCount
+            iy -= vehNodeCount
+
+            CLEO_CALL writeFileOffset 0 (file, offset, 4) (nodeCount)
+            offset += 4
+            CLEO_CALL writeFileOffset 0 (file, offset, 4) (vehNodeCount)
+            offset += 4
+            CLEO_CALL writeFileOffset 0 (file, offset, 4) (iy)
+            offset += 4
+            CLEO_CALL writeFileOffset 0 (file, offset, 4) (naviCount)
+            offset += 4
+            CLEO_CALL writeFileOffset 0 (file, offset, 4) (linkCount)
+            offset += 4
+
+            //================== SECAO 1: NODES (28 bytes cada) ==================
+            linkId = 0
+            count = 0
+            WHILE count < nodeCount
+                obj = 0
+                GET_LIST_VALUE_BY_INDEX list count (obj)
+
+                //--- Primeiros 8 bytes (enderecos de memoria do compilador original).
+                //    Sao ignorados pelo jogo; preserva o original quando o node veio do arquivo
+                ix = 0
+                iy = 0
+                IF count < origNodeCount
+                    CLEO_CALL getNodeOffset 0 (count) (size)
+                    READ_STRUCT_OFFSET filemem size 4 (ix)
+                    size += 4
+                    READ_STRUCT_OFFSET filemem size 4 (iy)
+                ENDIF
+                CLEO_CALL writeFileOffset 0 (file, offset, 4) (ix)
+                offset += 4
+                CLEO_CALL writeFileOffset 0 (file, offset, 4) (iy)
+                offset += 4
+
+                //--- Coordenadas (float -> int16 dividido por 8)
+                x = 0.0
+                y = 0.0
+                z = 0.0
+                IF DOES_OBJECT_EXIST obj
+                    GET_OBJECT_COORDINATES obj x y z
+                ENDIF
+                CLEO_CALL convertToSignedCoord 0 (x) (ix)
+                CLEO_CALL convertToSignedCoord 0 (y) (iy)
+                CLEO_CALL convertToSignedCoord 0 (z) (iz)
+
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (ix)
+                offset += 2
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (iy)
+                offset += 2
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (iz)
+                offset += 2
+
+                //--- Heuristica: distancia inicial da busca (SHRT_MAX - 1, o jogo restaura sozinho)
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (0x7FFE)
+                offset += 2
+
+                //--- Link ID (indice do primeiro link deste node)
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (linkId)
+                offset += 2
+
+                //--- Area ID (o proprio numero do arquivo)
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (area)
+                offset += 2
+
+                //--- Node ID (indice do node dentro do arquivo)
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (count)
+                offset += 2
+
+                //--- Path Width
+                ix = 0
+                IF DOES_OBJECT_EXIST obj
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 4 (ix)
+                ENDIF
+                IF ix < 0
+                    ix = 0
+                ENDIF
+                IF ix > 255
+                    ix = 255
+                ENDIF
+                CLEO_CALL writeFileOffset 0 (file, offset, 1) (ix)
+                offset += 1
+
+                //--- Flood Fill
+                ix = 0
+                IF DOES_OBJECT_EXIST obj
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 5 (ix)
+                ENDIF
+                IF ix < 0
+                    ix = 0
+                ENDIF
+                IF ix > 255
+                    ix = 255
+                ENDIF
+                CLEO_CALL writeFileOffset 0 (file, offset, 1) (ix)
+                offset += 1
+
+                //--- Flags (bits 0-3 = numero de links deste node)
+                ix = 0
+                links = 0
+                IF DOES_OBJECT_EXIST obj
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 6 (ix)
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 8 (links)
+                ENDIF
+                CLEO_CALL setFlagFromValue 0 (ix, 0, 4, links) (ix)
+                CLEO_CALL writeFileOffset 0 (file, offset, 4) (ix)
+                offset += 4
+
+                linkId += links
+                count += 1
+            ENDWHILE
+
+            //================== SECAO 2: NAVI NODES (14 bytes cada) ==================
+            count = 0
+            WHILE count < naviCount
+                obj = 0
+                GET_LIST_VALUE_BY_INDEX list2 count (obj)
+
+                //--- Posicao (so X e Y)
+                x = 0.0
+                y = 0.0
+                z = 0.0
+                IF DOES_OBJECT_EXIST obj
+                    GET_OBJECT_COORDINATES obj x y z
+                ENDIF
+                CLEO_CALL convertToSignedCoord 0 (x) (ix)
+                CLEO_CALL convertToSignedCoord 0 (y) (iy)
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (ix)
+                offset += 2
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (iy)
+                offset += 2
+
+                //--- Node conectado (Area + Node)
+                ix = -1
+                iy = -1
+                IF DOES_OBJECT_EXIST obj
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 1 (ix) //AreaID
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 2 (iy) //NodeID
+                ENDIF
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (ix)
+                offset += 2
+                CLEO_CALL writeFileOffset 0 (file, offset, 2) (iy)
+                offset += 2
+
+                //--- Direcao do trafego (vem da rotacao do objeto)
+                x = 0.0
+                IF DOES_OBJECT_EXIST obj
+                    GET_OBJECT_HEADING obj x
+                ENDIF
+                CLEO_CALL getSignedAngle 0 (x) (ix, iy)
+                CLEO_CALL writeFileOffset 0 (file, offset, 1) (ix)
+                offset += 1
+                CLEO_CALL writeFileOffset 0 (file, offset, 1) (iy)
+                offset += 1
+
+                //--- Path width (byte) + flags (3 bytes)
+                ix = 0
+                iz = 0
+                IF DOES_OBJECT_EXIST obj
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 5 (ix) //Flags
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 6 (iz) //Path Width
+                ENDIF
+                IF iz < 0
+                    iz = 0
+                ENDIF
+                IF iz > 255
+                    iz = 255
+                ENDIF
+                CLEO_CALL setFlagFromValue 0 (ix, 0, 8, iz) (ix)
+                CLEO_CALL writeFileOffset 0 (file, offset, 4) (ix)
+                offset += 4
+
+                count += 1
+            ENDWHILE
+
+            //================== SECAO 3: LINKS (4 bytes cada) ==================
+            count = 0
+            WHILE count < nodeCount
+                obj = 0
+                GET_LIST_VALUE_BY_INDEX list count (obj)
+
+                links = 0
+                IF DOES_OBJECT_EXIST obj
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 8 (links)
+                ENDIF
+
+                IF links > 0
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 9 (list2)  //LinkAreaList
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 10 (list3) //LinkNodeList
+
+                    count2 = 0
+                    WHILE count2 < links
+                        ix = 0
+                        iy = 0
+                        GET_LIST_VALUE_BY_INDEX list2 count2 (ix)
+                        GET_LIST_VALUE_BY_INDEX list3 count2 (iy)
+
+                        CLEO_CALL writeFileOffset 0 (file, offset, 2) (ix)
+                        offset += 2
+                        CLEO_CALL writeFileOffset 0 (file, offset, 2) (iy)
+                        offset += 2
+
+                        count2 += 1
+                    ENDWHILE
+                ENDIF
+                count += 1
+            ENDWHILE
+
+            //================== SECAO 4: 192 SLOTS EXTRAS DE LINKS (768 bytes) ==================
+            //    (area 0xFFFF + node 0x0000 = slot livre usado pelos "dynamic links")
+            CLEO_CALL getLinkOffset 0 (origLinkCount, origNodeCount, origNaviCount) (srcBase)
+
+            size = srcBase
+            size += 768
+
+            IF origFileSize >= size
+                count = 0
+                WHILE count < 192
+                    ix = 0
+                    READ_STRUCT_OFFSET filemem srcBase 4 (ix)
+                    CLEO_CALL writeFileOffset 0 (file, offset, 4) (ix)
+                    offset += 4
+                    srcBase += 4
+                    count += 1
+                ENDWHILE
+            ELSE
+                count = 0
+                WHILE count < 192
+                    CLEO_CALL writeFileOffset 0 (file, offset, 4) (65535)
+                    offset += 4
+                    count += 1
+                ENDWHILE
+            ENDIF
+
+            //================== SECAO 5: NAVI LINKS (2 bytes cada) ==================
+            count = 0
+            WHILE count < nodeCount
+                obj = 0
+                GET_LIST_VALUE_BY_INDEX list count (obj)
+
+                links = 0
+                IF DOES_OBJECT_EXIST obj
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 8 (links)
+                ENDIF
+
+                IF links > 0
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 11 (list2) //LinkNaviList
+
+                    count2 = 0
+                    WHILE count2 < links
+                        ix = 0
+                        GET_LIST_VALUE_BY_INDEX list2 count2 (ix)
+                        CLEO_CALL writeFileOffset 0 (file, offset, 2) (ix)
+                        offset += 2
+                        count2 += 1
+                    ENDWHILE
+                ENDIF
+                count += 1
+            ENDWHILE
+
+            //================== SECAO 6: COMPRIMENTO DOS LINKS (1 byte cada) ==================
+            //    (o arquivo tem 192 bytes extras no fim desta secao)
+            CLEO_CALL getLinkLengthOffset 0 (0, origNodeCount, origNaviCount, origLinkCount) (srcBase)
+
+            linkId = 0
+            count = 0
+            WHILE count < nodeCount
+                obj = 0
+                GET_LIST_VALUE_BY_INDEX list count (obj)
+
+                links = 0
+                IF DOES_OBJECT_EXIST obj
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 8 (links)
+                ENDIF
+
+                IF links > 0
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 12 (list2) //LinkLengthList
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 13 (list3) //LinkObjectList (node alvo)
+
+                    count2 = 0
+                    WHILE count2 < links
+                        ix = 0
+                        GET_LIST_VALUE_BY_INDEX list2 count2 (ix)
+
+                        //Comprimento guardado no arquivo original
+                        IF linkId < origLinkCount
+                            iy = 0
+                            READ_STRUCT_OFFSET filemem srcBase 1 (iy)
+                            ix = iy
+                        ENDIF
+
+                        //Se o node alvo esta carregado da pra conferir a distancia real
+                        target = 0
+                        GET_LIST_VALUE_BY_INDEX list3 count2 (target)
+                        IF DOES_OBJECT_EXIST target
+                        AND DOES_OBJECT_EXIST obj
+                            iy = 0
+                            CLEO_CALL getLinkLength 0 (obj, target) (iy)
+
+                            iz = ix
+                            iz -= iy
+                            IF iz < 0
+                                iz *= -1
+                            ENDIF
+                            IF iz > 1 //Passou de 1 unidade de diferenca: comprimento desatualizado
+                                ix = iy
+                            ENDIF
+                        ENDIF
+
+                        IF ix < 0
+                            ix = 0
+                        ENDIF
+                        IF ix > 255
+                            ix = 255
+                        ENDIF
+
+                        CLEO_CALL writeFileOffset 0 (file, offset, 1) (ix)
+                        offset += 1
+                        srcBase += 1
+                        linkId += 1
+
+                        count2 += 1
+                    ENDWHILE
+                ENDIF
+                count += 1
+            ENDWHILE
+
+            //192 bytes extras no fim da secao 6
+            CLEO_CALL getLinkLengthOffset 0 (origLinkCount, origNodeCount, origNaviCount, origLinkCount) (srcBase)
+            count = 0
+            WHILE count < 192
+                ix = 0
+                READ_STRUCT_OFFSET filemem srcBase 1 (ix)
+                CLEO_CALL writeFileOffset 0 (file, offset, 1) (ix)
+                offset += 1
+                srcBase += 1
+                count += 1
+            ENDWHILE
+
+            //================== SECAO 7: FLAGS DE INTERSECAO (1 byte por link) ==================
+            //    (o arquivo tem 192 bytes extras no fim desta secao)
+            CLEO_CALL getIntersectionOffset 0 (0, origNodeCount, origNaviCount, origLinkCount) (srcBase)
+
+            linkId = 0
+            count = 0
+            WHILE count < nodeCount
+                obj = 0
+                GET_LIST_VALUE_BY_INDEX list count (obj)
+
+                links = 0
+                IF DOES_OBJECT_EXIST obj
+                    GET_EXTENDED_OBJECT_VAR obj VPEV 8 (links)
+                ENDIF
+
+                count2 = 0
+                WHILE count2 < links
+                    ix = 0
+                    IF linkId < origLinkCount
+                        READ_STRUCT_OFFSET filemem srcBase 1 (ix)
+                    ENDIF
+                    CLEO_CALL writeFileOffset 0 (file, offset, 1) (ix)
+                    offset += 1
+                    srcBase += 1
+                    linkId += 1
+                    count2 += 1
+                ENDWHILE
+                count += 1
+            ENDWHILE
+
+            //192 bytes extras no fim da secao 7
+            CLEO_CALL getIntersectionOffset 0 (0, origNodeCount, origNaviCount, origLinkCount) (srcBase)
+            size = origLinkCount
+            srcBase += size
+            count = 0
+            WHILE count < 192
+                ix = 0
+                READ_STRUCT_OFFSET filemem srcBase 1 (ix)
+                CLEO_CALL writeFileOffset 0 (file, offset, 1) (ix)
+                offset += 1
+                srcBase += 1
+                count += 1
+            ENDWHILE
+
+            CLOSE_FILE file
+
+            //================== CONFERENCIA FINAL ==================
+            size = 28 * nodeCount
+            iz = 14 * naviCount
+            size += iz
+            iz = 8 * linkCount
+            size += iz
+            size += 1172 //20 (cabecalho) + 768 (slots extras de links) + 192 + 192
+
+            IF NOT offset = size
+                PRINT_FORMATTED_NOW "~r~nodes%i.dat: gravado com %i bytes (esperado %i)" 9000 area offset size
+                status = 2
+            ENDIF
+        ELSE
+            PRINT_FORMATTED_NOW "~r~nodes%i.dat: nao foi possivel criar o arquivo" 6000 area
+            status = 1
+        ENDIF
+    CLEO_RETURN 0 status
+    }
+
 /////////////////////////////////////////////////STREAM MEMORY////////////////////////////////////////////////////////
     stringLabel:
     DUMP
@@ -3491,6 +4288,10 @@ SCRIPT_END
     00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 //NodeList 36
     00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 //NaviList 72
     00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 //Files 108
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 //NodeCount original 144
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 //Tamanho do arquivo original 180
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 //NaviCount original 216
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 //LinkCount original 252
     ENDDUMP
 
     functionz:
@@ -3523,5 +4324,10 @@ SCRIPT_END
     00 00 00 00 //28 - var8
     00 00 00 00 //32 - PathWidth
     00 00 00 00 //36 - Flags
+    ENDDUMP
+
+    saveInfo:
+    DUMP
+    00 00 00 00 //0 - arquivos que falharam no salvamento
     ENDDUMP
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
