@@ -26,3 +26,10 @@ Cleo author: Junior_Djjr
 ====   MixMods.com.br         ====
 ====   fb.com/FamiliaMixMods  ====
 
+------- Proper Shaders (optional):
+With ProperShaders.asi (API 09-26+) the light becomes real per-pixel deferred
+lighting (walls, ground, fog). Without it the mod falls back to the classic
+searchlight/corona. See "Leiame (reescrita CLEO+).txt" and the .ini
+[UseProperShaders / PsRadius / PsIntensity / PsOffsetZ / PsFog].
+
+API docs: https://github.com/MixMods/ProperShadersApiExample
