@@ -1,0 +1,77 @@
+================================================================================
+                         SanNews TV Programs
+                    (reescrita GTA3script / gta3sc)
+================================================================================
+
+Script original: RenanMSV (2018) - Sanny Builder
+Reescrita e correcao: GTA3script (NAO e Sanny Builder)
+
+--------------------------------------------------------------------------------
+O QUE E ISSO
+--------------------------------------------------------------------------------
+Quando voce entra num veiculo e troca a camera ate o modo CINEMATICO
+(camera de filme - tecla V por padrao, cicla as cameras), a tela vira um
+jornalismo ao vivo no estilo Weazel News do GTA V: moldura de TV, logos,
+faixa de noticias rolando e manchete.
+
+Situacoes especiais:
+  - com estrela de procurado, a faixa vira perseguicao policial
+  - com chuva (SF ou countryside), a faixa vira alerta meteorologico
+
+--------------------------------------------------------------------------------
+POR QUE O SCRIPT ANTIGO NUNCA FUNCIONAVA
+--------------------------------------------------------------------------------
+1. Sprites 6500 a 6504. O SA so tem ~15 vagas de sprite de script.
+   6500 escreve fora do array: crash, lixo na memoria, ou textura invisivel.
+2. Nao tinha arquivo .FXT. DISPLAY_TEXT usa sann_00..sann_11 - sem FXT o
+   texto nao existe.
+3. 03F0 enable_text_draw 0 ANTES de desenhar o texto.
+4. Texto do ticker ia ATRAS da faixa (03E0) e sumia.
+5. Clima lido com 4 bytes em 0xC81320 (e int16). A comparacao == 8 falhava
+   quando realmente chovia, e so testava o clima 8 (ignorava o 16).
+6. Ticker por frame: com 60 FPS a faixa voava da tela.
+7. O else religava HUD/radar TODO FRAME, brigando com outros mods.
+8. Sem IS_PLAYER_PLAYING: crash com o CJ morto/preso.
+9. TXD nunca era descarregada (brigava com outros scripts nos sprites 1-5).
+
+--------------------------------------------------------------------------------
+INSTALACAO
+--------------------------------------------------------------------------------
+Requer: GTA SA v1.0 + CLEO 4.4+ (o FXT e o READ_MEMORY vem do CLEO).
+
+Compile o source (gta3sc, NAO Sanny Builder):
+
+    gta3sc compile --config=gtasa --guesser --cs -fno-entity-tracking -O \
+        sannews.sc -o sannews.cs
+
+Copie para a pasta do jogo:
+
+    CLEO\sannews.cs
+    CLEO\sannews.fxt
+
+TXD (opcional, logos/moldura do mod original):
+
+    models\txd\sannews.txd
+
+    Texturas esperadas dentro do TXD: SANNEWS, tvborder, calogo, newsbar, tv24.
+    Se voce tem o pack original "SanNews TV Programs For GTA SA" (RenanMSV /
+    GTAinside), copie o sannews.txd de la. SEM a TXD a overlay ainda funciona:
+    letterbox, faixa preta e os textos.
+
+Com ModLoader, pode jogar a pasta "SanNews TV Programs" dentro de modloader\
+(mantendo CLEO\ e, se tiver, models\txd\).
+
+--------------------------------------------------------------------------------
+COMO USAR
+--------------------------------------------------------------------------------
+1. Entre em qualquer veiculo.
+2. Aperte V (Change Camera) ate a camera CINEMATICA - aquela que corta
+   entre angulos de filme, nao a chase proxima/media/longe nem a do capu.
+3. A overlay aparece. Aperte V de novo pra sair.
+
+--------------------------------------------------------------------------------
+CREDITOS
+--------------------------------------------------------------------------------
+- Ideia / script original (Sanny): RenanMSV (2018)
+- Reescrita GTA3script e correcoes: 2026
+================================================================================
