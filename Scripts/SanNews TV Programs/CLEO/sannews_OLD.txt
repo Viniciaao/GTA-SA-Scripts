@@ -1,0 +1,199 @@
+{$CLEO}
+
+0390: load_txd_dictionary 'sannews'
+038F: load_texture "SANNEWS" as 6500
+038F: load_texture "tvborder" as 6501
+038F: load_texture "calogo" as 6502
+038F: load_texture "newsbar" as 6503
+038F: load_texture "tv24" as 6504
+
+{San News TV program Code}
+{ current weather 0xC81320 }
+
+const
+timer1 = 32@
+mancheteAtual = 31@
+noticiaAtual = 29@
+tempoTrocarManchete = 5000 {ms}
+totalManchetes = 5
+totalNoticias = 3
+climaAtual = 28@
+end
+
+var
+25@:int
+26@:int
+mancheteAtual:int
+noticiaAtual:int
+end
+
+30@ = 850.0
+25@ = totalManchetes
+25@--
+26@ = totalNoticias
+26@--
+
+while true
+    wait 0
+    //gosub @guiTool  // apenas para posicionar as texturas
+    0A39: get_vehicle_camera_mode_to 0@
+    if 30@ > -336.0
+    then
+        30@ -= 1.0
+    end
+    if 30@ <= -200.0
+    then
+        if noticiaAtual < 26@
+        then
+            noticiaAtual++
+        else
+            noticiaAtual = 0
+        end
+        30@ = 850.0
+    end
+    if timer1 > tempoTrocarManchete
+    then
+        if mancheteAtual < 25@
+        then
+            mancheteAtual++
+        else
+            mancheteAtual = 0
+        end
+        timer1 = 0
+    end
+    if and
+    0@ == 5
+    actor.Driving($3)
+    then
+        0581: enable_radar 0
+        0826: enable_hud 0
+        03F0: enable_text_draw 0
+        033F: set_text_draw_letter_size .3 .8
+        0341: set_text_draw_align_justify 1
+        0342: set_text_draw_centered 1
+        0348: enable_text_draw_proportional 1
+        0349: set_text_draw_font 2
+        0344: set_text_draw_linewidth 90.0 for_centered_text
+        0340: set_text_draw_RGBA 255 0 0 255
+        081C: draw_text_outline 1 RGBA 0 0 0 255
+        033E: set_draw_text_position 581.0 350.0 GXT "sann_00" // Ao Vivo
+
+        03E0: draw_text_behind_textures 1
+        033F: set_text_draw_letter_size 0.25 .9
+        //0341: set_text_draw_align_justify 1
+        0342: set_text_draw_centered 1
+        0348: enable_text_draw_proportional 1
+        0349: set_text_draw_font 1
+        0344: set_text_draw_linewidth 3000.0 for_centered_text
+        0340: set_text_draw_RGBA 255 255 255 255
+        081C: draw_text_outline 0 RGBA 0 0 0 0
+        if player.WantedLevel($2) > 0
+        then
+            033E: set_draw_text_position 30@ 392.0 GXT "sann_01" // Noticias Fundo // procurado
+        else
+            0A8D: ClimaAtual = read_memory 0xC81320 size 4 virtual_protect 0
+            if ClimaAtual == 8
+            then
+                033E: set_draw_text_position 30@ 392.0 GXT "sann_06" // Noticias Fundo // chuva
+            else
+                if noticiaAtual == 0
+                then
+                    033E: set_draw_text_position 30@ 392.0 GXT "sann_03" // Noticias Fundo
+                end
+                if noticiaAtual == 1
+                then
+                    033E: set_draw_text_position 30@ 392.0 GXT "sann_04" // Noticias Fundo
+                end
+                if noticiaAtual == 2
+                then
+                    033E: set_draw_text_position 30@ 392.0 GXT "sann_05" // Noticias Fundo
+                end
+            end
+        end
+         // last -336
+        // begin 985
+
+        033F: set_text_draw_letter_size .25 .8
+        0341: set_text_draw_align_justify 1
+        0342: set_text_draw_centered 1
+        0348: enable_text_draw_proportional 1
+        0349: set_text_draw_font 2
+        0340: set_text_draw_RGBA 255 244 255 255
+        081C: draw_text_outline 0 RGBA 0 0 0 0
+        if mancheteAtual == 0
+        then
+            033E: set_draw_text_position 313.0 378.0 GXT "sann_07" // Manchetes
+        end
+        if mancheteAtual == 1
+        then
+            033E: set_draw_text_position 313.0 378.0 GXT "sann_08" // Manchetes
+        end
+        if mancheteAtual == 2
+        then
+            033E: set_draw_text_position 313.0 378.0 GXT "sann_09" // Manchetes
+        end
+        if mancheteAtual == 3
+        then
+            033E: set_draw_text_position 313.0 378.0 GXT "sann_10" // Manchetes
+        end
+        if mancheteAtual == 4
+        then
+            033E: set_draw_text_position 313.0 378.0 GXT "sann_11" // Manchetes
+        end
+
+        03E3: set_texture_to_be_drawn_antialiased 1
+        038D: draw_texture 6500 position W 581.0 H 375.0  size W 70.0 H 32.0 RGBA 255 255 255 255  // SanNews Logo
+        038D: draw_texture 6504 position W 34.0 H 21.0  size W 54.0 H 27.0 RGBA 255 255 255 255 // tv 24
+        038D: draw_texture 6501 position W 322.0 H 223.0 size W 645.0 H 455.0 RGBA 255 255 255 255  //TV Border
+        038D: draw_texture 6503 position W 267.0 H 382.0 size W 518.0 H 20.0 RGBA 255 255 255 255  // news bar
+        038D: draw_texture 6502 position W 83.0 H 375.0 size W 67.0 H 32.0 RGBA 255 255 255 255  // CidadeAlerta Logo
+    else
+        0581: enable_radar 1
+        0826: enable_hud 1
+    end
+end
+
+
+
+:guiTool
+
+//24@ = 0.0
+//23@ = 0.0
+//22@ = 0.0
+//21@ = 0.0
+
+if 0AB0:   key_pressed 0x61
+then
+    24@ -= 1.0
+end
+if  0AB0:   key_pressed 0x62
+then
+    24@ += 1.0
+end
+if 0AB0:   key_pressed 0x64
+then
+    23@ -= 1.0
+end
+if  0AB0:   key_pressed 0x65
+then
+    23@ += 1.0
+end
+if 0AB0:   key_pressed 0x67
+then
+    21@ -= 1.0
+end
+if  0AB0:   key_pressed 0x68
+then
+    21@ += 1.0
+end
+if 0AB0:   key_pressed 0x66
+then
+    22@ -= 1.0
+end
+if  0AB0:   key_pressed 0x69
+then
+    22@ += 1.0
+end
+
+0AD1: show_formatted_text_highpriority "W %.f H %.f Ww %.f Hh %.f" time 100 21@ 22@ 23@ 24@
+0051: return
