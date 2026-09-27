@@ -110,16 +110,52 @@ def write_wav(path, samples, sample_rate=SAMPLE_RATE):
     return len(frames)
 
 
+def write_mp3(path, samples, sample_rate=SAMPLE_RATE):
+    # O .ini deste mod aponta para brakepad.mp3 (o mod original tambem usa mp3),
+    # entao o pacote precisa trazer o placeholder no mesmo formato. O encoder
+    # (lameenc) e' opcional: se nao estiver instalado, o .wav continua valendo
+    # e o script so avisa que falta o .mp3.
+    try:
+        import lameenc
+    except ImportError:
+        return None
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    pcm = bytearray()
+    for v in samples:
+        v = max(-1.0, min(1.0, v))
+        pcm += struct.pack("<h", int(v * 32767.0))
+    enc = lameenc.Encoder()
+    enc.set_bit_rate(128)
+    enc.set_in_sample_rate(sample_rate)
+    enc.set_channels(1)
+    enc.set_quality(2)
+    data = enc.encode(bytes(pcm))
+    data += enc.flush()
+    with open(path, "wb") as fh:
+        fh.write(data)
+    return len(data)
+
+
 def main():
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     parser = argparse.ArgumentParser(description="gera o chiado de pastilha de freio")
     parser.add_argument("--out", default=os.path.join(here, "CLEO", "BrakePadSound", "brakepad.wav"))
+    parser.add_argument("--mp3", default=os.path.join(here, "CLEO", "BrakePadSound", "brakepad.mp3"))
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     args = parser.parse_args()
 
     samples = build_samples(seed=args.seed)
     size = write_wav(args.out, samples)
     print("%s (%d bytes, %.2f s, %d Hz, mono)" % (args.out, size, DURATION, SAMPLE_RATE))
+
+    # o .mp3 vem das MESMAS amostras do .wav: sao o mesmo chiado, so que
+    # empacotado no formato que o .ini aponta
+    if args.mp3:
+        msize = write_mp3(args.mp3, samples)
+        if msize is None:
+            print("aviso: lameenc nao instalado, pulei o %s" % args.mp3)
+        else:
+            print("%s (%d bytes, %.2f s, 128 kbps, mono)" % (args.mp3, msize, DURATION))
 
 
 if __name__ == "__main__":

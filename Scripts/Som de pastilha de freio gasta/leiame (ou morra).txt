@@ -97,7 +97,8 @@ INSTALACAO
 
      CLEO\BrakePadSound.cs
      CLEO\BrakePadSound.ini
-     CLEO\BrakePadSound\brakepad.wav     (a subpasta tambem precisa ser criada)
+     CLEO\BrakePadSound\brakepad.mp3     (a subpasta tambem precisa ser criada)
+     CLEO\BrakePadSound\brakepad.wav     (mesmo som, em wav: use o que quiser)
 
    Se voce usa o ModLoader do MixMods, extraia a pasta do mod inteira para
    ModLoader\Scripts\.
@@ -108,11 +109,12 @@ INSTALACAO
 --------------------------------------------------------------------------------
 O SOM
 --------------------------------------------------------------------------------
-O brakepad.wav deste pacote e' SINTETIZADO (tools/make_sound.py), porque o som
-do mod original e' dos autores dele e nao e' nosso para redistribuir. Se voce tem
-o som da v2.5.1, copie o arquivo dele para CLEO\BrakePadSound\brakepad.wav (ou
-aponte a chave SoundFile do .ini para o caminho dele, que aceita wav e mp3) e o
-mod passa a usar o seu.
+O brakepad deste pacote e' SINTETIZADO (tools/make_sound.py), porque o som do
+mod original e' dos autores dele e nao e' nosso para redistribuir. O .ini vem
+apontado para o brakepad.mp3, e o brakepad.wav do mesmo som tambem esta no
+pacote: use o que preferir. Se voce tem o som da v2.5.1 (ou o do mod original),
+copie o arquivo dele para CLEO\BrakePadSound\ ou aponte a chave SoundFile do
+.ini para o caminho dele (aceita wav e mp3) - o mod passa a usar o seu.
 
 O script nao depende da duracao do arquivo: o brakepad deste pacote dura 1,2 s e
 o do mod original dura ~6 s, e os dois funcionam igual. O que decide o
@@ -132,14 +134,13 @@ CONFIGURACAO (CLEO\BrakePadSound.ini)
       O valor do carro (handling) tem que estar entre os dois para chiar. Com o
       padrao, entram os carros velhos/baratos (Bandito, FCR-900, Perennial,
       Vortex, picaretas...) e ficam de fora os caros (Infernus, Bullet, Super
-      GT, ...). Com Debug = 1 o script imprime o valor de cada carro novo que
-      aparece - e' assim que se descobre o corte certo.
+      GT, ...). Para descobrir o corte certo, veja "PROBLEMAS" mais abaixo.
 
   Vehicles = 0
       0 = so carros (inclui van, caminhao e onibus). 1 = carros + motos e
       quadriciclos. Aereo e aquatico nunca chiam em nenhum dos modos.
 
-  Volume = 0.7
+  Volume = 0.5
       Teto do volume do chiado. O volume final ainda e' multiplicado pelo volume
       de efeitos do menu, pela pressao do pedal e pela velocidade.
 
@@ -147,7 +148,7 @@ CONFIGURACAO (CLEO\BrakePadSound.ini)
       Distancia (m) da camera em que o som ainda pode ser disparado. Menor = mais
       barato; maior = da para ouvir carros mais longe.
 
-  SoundFile = CLEO\BrakePadSound\brakepad.wav
+  SoundFile = CLEO\BrakePadSound\brakepad.mp3
       Caminho do som (wav ou mp3).
 
   BrakeThreshold = 0.15
@@ -174,9 +175,6 @@ CONFIGURACAO (CLEO\BrakePadSound.ini)
       fim). 0.5 = mais lento, se o seu arquivo tiver um rastro. O mesmo tempo
       vale para a entrada: o chiado tambem sobe devagar em vez de estalar.
 
-  Debug = 0
-      1 = imprime na tela o valor de cada carro novo que aparece.
-
 --------------------------------------------------------------------------------
 PROBLEMAS
 --------------------------------------------------------------------------------
@@ -199,9 +197,18 @@ PROBLEMAS
 
 "Funciona, mas o carro do jogo esta com o valor alto demais e nao chia"
 
-  Ligue Debug = 1 no .ini: o script imprime o valor de cada carro na tela.
-  Ajusta o MaxValue pelo que aparecer. (O valor e' o mesmo que o jogo usa na
-  missao de exportar veiculos: a coluna "Monetary Value" do handling do carro.)
+  O script e' silencioso de proposito (ele so avisa quando falta o arquivo de
+  som), entao nao ha print para olhar. Ache o valor do carro no jogo: a coluna
+  "Monetary Value" do data/handling.cfg, na secao do carro. E' o mesmo numero
+  que o jogo usa na missao de exportar veiculos. Ajuste o MaxValue para incluir
+  esse valor. Se quiser descobrir os valores de varios carros de uma vez, abra
+  o handling.cfg no bloco [VEHICLE MODELS] - o script le o mesmo arquivo.
+
+Nota: o script e' silencioso. Ele nao imprime nada na tela em uso normal - a
+unica mensagem que aparece e o aviso de "arquivo de som nao encontrado", se o
+som do .ini nao existir. Isso e' de proposito: um print por frame (ou por carro)
+seria um incomodo, e nao ajuda em nada. Para descobrir por que um carro
+especifico nao chia, veja os problemas abaixo.
 
 O script nao faz barulho nenhum / nao aparece nada
 
@@ -226,9 +233,10 @@ NAO OUVI SOM NENHUM (nem no meu carro, nem no dos NPCs)
      e' uma pastilha gasta, entao ela canta com o carro andando. Para testar
      parado: a v2.9 mede a desaceleracao, entao so canta freando de verdade.
 
-  4. Se ainda assim nao tocar, ponha Debug = 1: o script imprime o valor de
-     cada carro novo que passa por ele. Se nenhum carro aparecer na tela, o
-     script nem esta rodando (volte ao item 1).
+  4. Se ainda assim nao tocar, confira o MaxValue/MinValue no .ini (o valor
+     do carro esta no data/handling.cfg) e baixe o BrakeForce. Se voce tem
+     certeza de que o carro esta na faixa, ele tem de chiar: nesse caso o
+     problema esta na instalacao - volte ao item 1.
 
 O som continua soando depois de eu soltar o freio
 

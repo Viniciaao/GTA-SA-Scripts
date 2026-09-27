@@ -97,7 +97,8 @@ INSTALLATION
 
      CLEO\BrakePadSound.cs
      CLEO\BrakePadSound.ini
-     CLEO\BrakePadSound\brakepad.wav     (create the subfolder too)
+     CLEO\BrakePadSound\brakepad.mp3     (create the subfolder too)
+     CLEO\BrakePadSound\brakepad.wav     (same sound as wav: use either one)
 
    If you use the MixMods ModLoader, extract the whole mod folder into
    ModLoader\Scripts\.
@@ -108,11 +109,12 @@ INSTALLATION
 --------------------------------------------------------------------------------
 THE SOUND
 --------------------------------------------------------------------------------
-The brakepad.wav shipped here is SYNTHESIZED (tools/make_sound.py), because the
-original mod's sound belongs to its authors and isn't ours to redistribute. If
-you have the v2.5.1 sound, drop it into CLEO\BrakePadSound\brakepad.wav (or point
-the SoundFile key in the .ini at it - both wav and mp3 work) and the mod will
-use yours.
+The brakepad shipped here is SYNTHESIZED (tools/make_sound.py), because the
+original mod's sound belongs to its authors and isn't ours to redistribute. The
+.ini points at brakepad.mp3, and the same sound as brakepad.wav is in the
+package too - use whichever you prefer. If you have the v2.5.1 sound (or the
+original mod's), drop it into CLEO\BrakePadSound\ or point the SoundFile key in
+the .ini at it (both wav and mp3 work) - the mod will use yours.
 
 --------------------------------------------------------------------------------
 CONFIGURATION (CLEO\BrakePadSound.ini)
@@ -126,15 +128,14 @@ CONFIGURATION (CLEO\BrakePadSound.ini)
   MaxValue = 32000
       A car's (handling) value must be between the two to squeal. By default the
       old/cheap cars are in (Bandito, FCR-900, Perennial, Vortex, old pickups...)
-      and the expensive ones are out (Infernus, Bullet, Super GT...). With
-      Debug = 1 the script prints the value of every new car it sees, which is
-      how you find the right cut-off.
+      and the expensive ones are out (Infernus, Bullet, Super GT...). See
+      "TROUBLESHOOTING" below for how to find the right cut-off.
 
   Vehicles = 0
       0 = cars only (includes vans, trucks and buses). 1 = cars + bikes and
       quads. Aircraft and boats never squeal, in either mode.
 
-  Volume = 0.7
+  Volume = 0.5
       Ceiling for the squeal volume. The final volume is also multiplied by the
       game's sound-effects volume, the pedal pressure and the speed.
 
@@ -142,7 +143,7 @@ CONFIGURATION (CLEO\BrakePadSound.ini)
       Distance (m) from the camera at which the sound can still be triggered.
       Smaller = cheaper; bigger = you hear cars further away.
 
-  SoundFile = CLEO\BrakePadSound\brakepad.wav
+  SoundFile = CLEO\BrakePadSound\brakepad.mp3
       Path to the sound file (wav or mp3).
 
   BrakeThreshold = 0.15
@@ -169,9 +170,6 @@ CONFIGURATION (CLEO\BrakePadSound.ini)
       the end). 0.5 = slower, if your file has a tail. The same time applies to
       the attack: the squeal fades in instead of popping.
 
-  Debug = 0
-      1 = prints each new car's value on screen.
-
 --------------------------------------------------------------------------------
 TROUBLESHOOTING
 --------------------------------------------------------------------------------
@@ -193,10 +191,12 @@ TROUBLESHOOTING
 
 "It runs, but the car in the game is worth too much and doesn't squeal"
 
-  Set Debug = 1 in the .ini: the script prints each car's value on screen.
-  Adjust MaxValue from what you see. (The value is the same one the game uses
-  for the vehicle export mission: the "Monetary Value" column of the car's
-  handling.)
+  The script is quiet on purpose (it only warns when the sound file is
+  missing), so there is no printout to watch. Find the car's value in the game:
+  the "Monetary Value" column in data/handling.cfg, under that car's block. It
+  is the same number the game uses for the vehicle export mission. Adjust
+  MaxValue so that value is included. To see several cars at once, open
+  handling.cfg under [VEHICLE MODELS] - the script reads that same file.
 
 Nothing happens at all
 
@@ -204,7 +204,13 @@ Nothing happens at all
   installed - the mod uses opcodes only CLEO+ has, so plain CLEO 4 won't do
   (and without CLEO+ the script doesn't even start).
 
-I hear no sound at all (neither mine nor the NPCs')
+Note: the script is quiet. It prints nothing during normal use - the only
+message you can see is the "sound file not found" warning, if the file in the
+.ini doesn't exist. That is on purpose: a print per frame (or per car) would
+be an annoyance and would not help. To find out why one specific car doesn't
+squeal, see the problems below.
+
+The script doesn't make a sound at all / nothing shows up
 
   v2.6 had a bug that zeroed the brake pressure, so it stayed silent in every
   situation. v2.9 ships that fixed - but if you are still running v2.6, follow
@@ -222,9 +228,10 @@ I hear no sound at all (neither mine nor the NPCs')
      v2.9 (it does not decelerate) - to hear it right away, roll a little and
      brake hard, or listen to a car on the street (the sound is 3D).
 
-  4. If it still doesn't sound, set Debug = 1: the script prints the value of
-     every new car that goes through it. If no car shows up, the script is not
-     running at all (go back to step 1).
+  4. If it still doesn't sound, check MaxValue/MinValue in the .ini (the car's
+     value is in data/handling.cfg) and lower BrakeForce. If you are sure the
+     car is in range it has to squeal, so the problem is the install - go back
+     to step 1.
 
 The sound keeps playing after I release the brake
 

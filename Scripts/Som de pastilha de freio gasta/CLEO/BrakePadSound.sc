@@ -174,7 +174,7 @@ NOP
 // ------------------------------------------------------------------ variaveis
 LVAR_INT hVeh hNewCar hStream pBuffer
 LVAR_INT iSearch iReg iPrevVel iSounds iNow iPrevTime iValue
-LVAR_INT iMinValue iMaxValue iVehicles iDebug
+LVAR_INT iMinValue iMaxValue iVehicles
 LVAR_FLOAT x y z fVel fDecel fBrake f fStep fVol fIncr
 LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed fFade
 
@@ -207,7 +207,7 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed fFade
     // ---- arquivo de som (tem que vir antes da checagem, senao o script
     // ---- conferiria sempre o caminho padrao e nunca o que voce configurou) ---
     IF NOT READ_STRING_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "SoundFile" pBuffer
-        WRITE_STRING_TO_INI_FILE "CLEO\BrakePadSound\brakepad.wav" "CLEO\BrakePadSound.ini" "Config" "SoundFile"
+        WRITE_STRING_TO_INI_FILE "CLEO\BrakePadSound\brakepad.mp3" "CLEO\BrakePadSound.ini" "Config" "SoundFile"
         READ_STRING_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "SoundFile" pBuffer
     ENDIF
 
@@ -231,18 +231,6 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed fFade
     ENDIF
     IF iVehicles > 1
         iVehicles = 1
-    ENDIF
-
-    // ---- depuracao: imprime o valor de cada carro novo que aparece ----
-    IF NOT READ_INT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "Debug" iDebug
-        WRITE_INT_TO_INI_FILE 0 "CLEO\BrakePadSound.ini" "Config" "Debug"
-        iDebug = 0
-    ENDIF
-    IF iDebug < 0
-        iDebug = 0
-    ENDIF
-    IF iDebug > 1
-        iDebug = 1
     ENDIF
 
     // ---- valor do carro (vem da handling) ----
@@ -332,10 +320,6 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed fFade
     ENDWHILE
 
     GET_GAME_TIMER (iPrevTime)
-    // A mensagem mostra o caminho que o script REALMENTE esta usando. Se o
-    // jogo mostra outra coisa aqui, o problema esta no BrakePadSound.ini (ou no
-    // ModLoader, que reescreve o .ini na pasta CLEO do mod).
-    PRINT_FORMATTED_NOW "Som de pastilha v2.9 - %s (ate %d, raio %f m)" 5000 $pBuffer iMaxValue fRadius
 
     // =================================================================== laco
     WHILE TRUE
@@ -444,14 +428,6 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed fFade
         EvalValue:
         // Valor monetario do carro, lido do proprio jogo (handling).
         GET_CAR_VALUE hVeh (iValue)
-
-        // Debug = 1 mostra o valor de TODO carro que chegou ate aqui, antes dos
-        // cortes: e' assim que se descobre o MinValue/MaxValue certo (se o
-        // print viesse depois, so apareceria o que ja foi aceito).
-        // iValue ja morreu como valor do carro aqui, entao serve de rascunho.
-        IF iDebug = 1
-            PRINT_FORMATTED_NOW "carro %d = %d (corte %d..%d)" 2500 hVeh iValue iMinValue iMaxValue
-        ENDIF
 
         IF iValue < iMinValue
             GOTO EvalReject

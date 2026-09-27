@@ -74,9 +74,9 @@ Esse é o mesmo valor que o jogo usa na missão de exportar veículos (é a colu
 | trocar o valor de um carro | editar o `.ini` do mod | editar o `handling.cfg` |
 
 O `.ini` continua mandando no **corte** (`MinValue` / `MaxValue`), que é a parte
-que o usuário realmente ajusta. Com `Debug = 1` o script imprime o valor de
-cada carro que passa por ele, então descobrir o corte certo é uma volta no
-cidade com o print ligado.
+que o usuário realmente ajusta. O valor do carro é o mesmo do `handling.cfg`
+(coluna "Monetary Value"), então o corte se descobre lendo aquele arquivo — não
+precisa (nem pode) de um print na tela: ver a seção 13.
 
 > **Nota sobre carro added:** muitos `handling.cfg` de carro added deixam o
 > valor monetário em 0. Com o padrão `MinValue = 0`, esses carros **chiam**.
@@ -237,9 +237,10 @@ arquivo para `CLEO\BrakePadSound\brakepad.wav` ou aponte `SoundFile` para ele.
 - **Ônibus/caminhão tem pedal de freio normal**, então chia como qualquer
   carro — inclusive quando o "freio a ar" do truck mod também estiver instalado.
   Dá para separar pelo `MaxValue`/handling, não por tipo.
-- **`Debug = 1` enche a tela**: ele imprime na primeira avaliação de cada carro.
-  É de propósito (é o jeito de achar o valor dos carros), mas use só na hora de
-  ajustar o corte.
+- **O script é silencioso**: ele não imprime nada em uso normal. Havia um
+  `Debug = 1` que despejava o valor de cada carro na tela, útil para achar o
+  corte — mas ele foi removido (seção 13), e o corte agora se acha lendo o
+  `handling.cfg`.
 - **Status de teste:** o source compila limpo com o toolchain do repositório
   (gta3sc + `cleo.xml` do CLEO+ 1.0.7, 3.944 bytes, SHA-256
   `9da5c164...`) e a lógica foi conferida opcode a opcode contra o código-fonte
@@ -475,3 +476,61 @@ Esse valor ainda é multiplicado por dois fatores, como o mod original:
 
 O resultado é limitado a 1.0. A v2.8 ainda tinha um teto extra de 0.7 acima
 disso, que impedia o `Volume = 1.0` do `.ini` de chegar ao máximo; foi removido.
+
+---
+
+## 13. v2.9: fora o modo debug, fora os textos
+
+**O pedido:** *"tire todos os textos do mod e modo debug. Deixe apenas avisos do
+tipo 'Áudio não encontrado' caso o mod não encontre."*
+
+### O que saiu
+
+O script tinha quatro `PRINT` no total. Dois eram o `Debug = 1` (o valor de cada
+carro que passava por ele) e um era o banner de inicialização
+(`Som de pastilha v2.9 - <caminho> (até N, raio M m)`, que ficava 5 s na tela
+toda vez que o jogo abria). Os três saíram.
+
+Sobrou **um** `PRINT`, em duas linhas, que é o aviso de arquivo de som não
+encontrado — e ele é funcional, não cosmético: sem ele o mod simplesmente não
+tocaria nada e o jogador não teria como saber por quê.
+
+```c
+IF NOT DOES_FILE_EXIST $pBuffer
+    PRINT_FORMATTED_NOW "~r~Som de pastilha: nao achei o arquivo de som:~n~w~%s" 10000 $pBuffer
+    PRINT_STRING_NOW "~r~Coloque o arquivo em CLEO\BrakePadSound\..." 10000
+    WHILE TRUE
+        WAIT 0
+    ENDWHILE
+ENDIF
+```
+
+Ele mostra o caminho **que o script tentou de verdade** (o valor lido do
+`.ini`), não um caminho genérico. É o que salva tempo quando o problema é o
+ModLoader ter reescrito o `.ini`.
+
+### E a chave `Debug`?
+
+Saiu do `.ini` junto. Deixá-la ali seria pior que inútil: o `READ_INT_FROM_INI`
+criaria a chave de volta no arquivo de quem tem o `.ini` antigo, e o script não
+faria nada com o valor — um botão morto que parece funcionar.
+
+Como o `iDebug` era a última variável do registro, a remoção também **liberou
+um slot de LVAR** (o `.sc` usa 30 dos 32 agora).
+
+### Como descobrir o corte de valor sem o print
+
+O `Debug` era o jeito de descobrir o `MaxValue` certo. A alternativa é o
+`handling.cfg`, que é a **fonte** daquele número: a coluna "Monetary Value" de
+cada carro, no próprio `data/handling.cfg`. O script lê o mesmo arquivo com
+`GET_CAR_VALUE`, então o valor do `.ini` e o valor do jogo não podem divergir —
+só é preciso abrir o `handling.cfg` e olhar.
+
+### O `.ini` acompanha
+
+`Volume` foi para `0.5` e o `SoundFile` passou a apontar para
+`brakepad.mp3` (o mesmo formato do mod original). Como o `.ini` agora pede um
+`.mp3`, o pacote passa a trazer o placeholder nos dois formatos — e o
+`tools/make_sound.py` gera os dois a partir das **mesmas amostras**, então são o
+mesmo chiado, só empacotado diferente. O `.mp3` depende do `lameenc`
+(`pip install lameenc`); sem ele o script ainda gera o `.wav` e avisa.

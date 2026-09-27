@@ -132,7 +132,7 @@ GTA3SC="$GTA3SC" bash tools/build.sh              # e compila o mod
 3. **Text label é curto demais para qualquer caminho de arquivo.**
    `LVAR_TEXT_LABEL` segura **7 caracteres** e `LVAR_TEXT_LABEL16` segura **15**
    (o último byte de cada um é o terminador nulo) — é por isso que eles
-   custam 2 e 4 slots. Um caminho de som ("CLEO\BrakePadSound\brakepad.wav")
+   custam 2 e 4 slots. Um caminho de som ("CLEO\BrakePadSound\brakepad.mp3")
    tem 31, então **nenhum** dos dois serve: o caminho era truncado e o
    `DOES_FILE_EXIST` respondia não mesmo com o arquivo no lugar certo
    (foi exatamente o bug da primeira build publicada).
@@ -237,18 +237,21 @@ pedal da IA pisando sem virar metralhadeira; e a **conferência do source**
 "o `.ini` é lido só no começo"). Se você mexer no `UpdateCar`, no `AdjustSound`,
 nos defaults do `.ini` ou nas conversões, rode isso antes de brigar com o jogo.
 
-## 7. O som (`brakepad.wav`)
+## 7. O som (`brakepad.mp3`)
 
-O `.wav` que vem no mod é **sintetizado** por
+O som que vem no mod é **sintetizado** por
 [`tools/make_sound.py`](tools/make_sound.py) (só biblioteca padrão do Python),
 porque o som do mod original é dos autores dele e não é nosso para
-redistribuir. Para usar o som do mod v2.5.1, copie o `.wav` dele (ou o `.mp3`) para
-`CLEO\BrakePadSound\brakepad.wav` ou aponte o `.ini` para o caminho dele. O
-script não depende da duração do arquivo: os ~6 s do mod original funcionam
-igual ao placeholder de 1,2 s deste pacote.
+redistribuir. O script gera os dois formatos a partir das mesmas amostras: o
+`brakepad.mp3` (o que o `.ini` aponta) e o `brakepad.wav`. Para gerar o `.mp3` é
+preciso o `lameenc` (`pip install lameenc`) — sem ele o script ainda gera o
+`.wav` e avisa que pulou o `.mp3`. Para usar o som do mod v2.5.1 (ou o do mod
+original), copie o arquivo dele para `CLEO\BrakePadSound\` ou aponte o `.ini`
+para o caminho dele. O script não depende da duração do arquivo: os ~6 s do
+mod original funcionam igual ao placeholder de 1,2 s deste pacote.
 
 ```bash
-python3 tools/make_sound.py                 # recria o wav padrão
+python3 tools/make_sound.py                 # recria o mp3 + o wav padrão
 python3 tools/make_sound.py --seed 1234     # outra variação
 ```
 
@@ -263,7 +266,7 @@ caracteres).
 ## 8. Instalar
 
 `CLEO/BrakePadSound.cs` e `CLEO/BrakePadSound.ini` vão para a pasta `CLEO` do
-jogo e `CLEO/BrakePadSound/brakepad.wav` para a subpasta. Se você usa o
+jogo e `CLEO/BrakePadSound/brakepad.mp3` (e o `.wav`) para a subpasta. Se você usa o
 ModLoader do MixMods, extraia a pasta do mod inteira para
 `ModLoader/Scripts/`. Requer **CLEO+ 1.0.7+** e o **CLEO Redux** (ou o
 ModLoader, que já traz o CLEO).
