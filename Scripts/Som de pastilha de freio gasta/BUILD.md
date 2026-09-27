@@ -91,7 +91,7 @@ o `cleo.xml` do CLEO+ `v1.0.7`, compila o `.sc` e mostra tamanho + SHA-256 do
 `.cs` gerado. O `.cs` que está no repositório:
 
 ```
-3944 bytes   SHA-256 9da5c16411f71aa990435715fa554e956a019475e3d0ae1ca69764ae160acaa9
+3402 bytes   SHA-256 431fa120f1e6656595bf45069fe2359718c7c907deabbc02035f9bc6348c2070
 ```
 
 **Sem cmake?** O `build.sh` exige o `cmake` para compilar o `gta3sc` da fonte.
@@ -190,16 +190,16 @@ GTA3SC="$GTA3SC" bash tools/build.sh              # e compila o mod
    | o que você quer | o que escrever |
    |---|---|
    | `fStep = (float)iValue` (int → float) | `CSET_LVAR_FLOAT_TO_LVAR_INT fStep iValue` |
-   | `iPress = (int)f` (float → int) | `CSET_LVAR_INT_TO_LVAR_FLOAT iPress f` |
+   | `iPrevVel = (int)f` (float → int) | `CSET_LVAR_INT_TO_LVAR_FLOAT iPrevVel f` |
 
-   A v2.6 escreveu ao contrário (`CSET_LVAR_INT_TO_LVAR_FLOAT iValue fStep`), o
-   `dt` virou `0.0`, a pressão nunca passou de `TriggerPressure` e o mod ficou
+   A v2.6/v2.7 escreveram ao contrário, o
+   `dt` virou `0.0`, a pressão nunca passou do gatilho e o mod ficou
    **mudo no carro do jogador e no dos NPCs** — mesmo com o pedal lido
    corretamente. A confirmação veio do `SCRLog` do jogo: o `dt` chegava valendo
    46 ms na linha `CSET` e a variável `fStep` continuava `0.0` na linha
    seguinte.
 
-   Esse bugesc fugiu de todos os testes de mesa justamente porque eles rodam em
+   Esse bug esc fugiu de todos os testes de mesa justamente porque eles rodam em
    Python e não em opcode — por isso a seção 9 do `test_model.py` agora lê o
    `.sc` e trava a ordem dos operandos.
 
@@ -214,22 +214,26 @@ na 1.0.7 (a 1.2.0 virou `0/1`).
 A parte que **não** é opcode puro é o modelo de pressão/cooldown do
 `UpdateCar`, e é justamente onde mora a diferença entre "um som por aperto" e
 metralhadeira. Ele está transcrito linha por linha em
-[`tools/test_model.py`](tools/test_model.py), que roda 81 verificações sem
+[`tools/test_model.py`](tools/test_model.py), que roda 72 verificações sem
 precisar do jogo:
 
 ```bash
 python3 tools/test_model.py
 ```
 
-Cobre: um som por aperto com `Cooldown = 0` em 30/60/144/240 FPS e apertos de
-0,2 s a 12 s; repetição enquanto o freio está apertado com `Cooldown = 1500`; o
-corte de `MinSpeed`; `BrakeThreshold`; a escala de volume (pedal com piso de
-50%, velocidade, volume do menu, teto em 1,0); `PressureRate`/`TriggerPressure`
-em milissegundos (30 FPS e 240 FPS dão o mesmo resultado); o pedal da IA pisando
-sem virar metralhadeira; e a **conferência do source** (ordem dos operandos do
-`CSET`, o `$` do ponteiro do buffer, a contagem de slots ≤ 32 e a promessa de
-"o `.ini` é lido só no começo"). Se você mexer no `UpdateCar`, nos defaults do
-`.ini` ou nas conversões, rode isso antes de brigar com o jogo.
+Cobre: **carro parado não canta** (com o pé no freio, mesmo com
+`BrakeThreshold = 0`); o chiado chegando na hora em que o carro freia de
+verdade; `BrakeThreshold`; `BrakeForce` (a queda em m/s² que separa freada de
+encostada no freio); a repetição enquanto a frenagem está forte com
+`Cooldown = 1500`; um som por aperto com `Cooldown = 0` em 30/60/144/240 FPS;
+a escala de volume (pedal com piso de 50%, velocidade com a conversão 3.6,
+volume do menu, teto em 1,0); a independência de FPS (mesma contagem e mesmo
+volume do primeiro som de 25 a 240 FPS); o pedal da IA pisando sem virar
+metralhadeira; e a **conferência do source** (ordem dos operandos do `CSET`, o
+`$` do ponteiro do buffer, a contagem de slots ≤ 32, a desaceleração em
+m/s², e a promessa de "o `.ini` é lido só no começo"). Se você mexer no
+`UpdateCar`, nos defaults do `.ini` ou nas conversões, rode isso antes de
+brigar com o jogo.
 
 ## 7. O som (`brakepad.wav`)
 

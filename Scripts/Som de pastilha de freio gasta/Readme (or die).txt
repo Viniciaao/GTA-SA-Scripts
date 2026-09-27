@@ -1,5 +1,5 @@
 ================================================================================
-        WORN BRAKE PAD SOUND - v2.7 (CLEO+, NPC edition)
+        WORN BRAKE PAD SOUND - v2.8 (CLEO+, NPC edition)
 ================================================================================
 
 Rewritten from scratch in GTA3script out of the "Som de pastilha de freio
@@ -48,10 +48,12 @@ WHAT CHANGED FROM v2.5.1
 6. The .ini is read once, and the sound is only triggered for cars inside the
    configured radius. See PERFORMANCE below.
 
-7. MinSpeed (new in v2.7). v2.5.1 squealed with the car standing still; v2.7
-   only squeals from MinSpeed km/h on (10 by default), because a worn pad does
-   not sing at a standstill. Set MinSpeed = 0 if you want to hear the squeal
-   without moving - it is the easiest way to test the sound.
+7. The trigger is DECELERATION, like the original mod (for the player and for
+   NPCs alike). v2.7 used a "pressure" that kept building and therefore
+   squealed with the car STANDING STILL; v2.8 measures the real drop in speed,
+   so it feels like the real thing: it sings when you actually brake, and stays
+   SILENT with the car stopped, even with your foot on the pedal. The knob is
+   BrakeForce (minimum drop, in m/s2).
 
 MELHORIAS.md (Portuguese) has the full list with implementation details.
 
@@ -111,33 +113,28 @@ CONFIGURATION (CLEO\BrakePadSound.ini)
       Path to the sound file (wav or mp3).
 
   BrakeThreshold = 0.15
-      Minimum pedal value (0 to 1) to count as braking. Above the threshold the
-      car is stopped/accelerating and doesn't squeal.
+      Minimum pedal (0 to 1) to count as braking. Below it the script
+      ignores the car - the guard against false positives (only real
+      braking counts).
 
-  TriggerPressure = 0.08
-      Minimum accumulated pressure to fire the sound. This is what tells "really
-      braked" from "touched the brake". Lower = more squealing.
-
-  PressureRate = 5.0
-      How fast (per second) the pressure builds while the brake is held.
-      Higher = the squeal shows up sooner on a short tap.
+  BrakeForce = 2.5
+      Minimum drop in speed (in m/s2, i.e. in "g") for the squeal to
+      count. A car really braking passes easily; barely touching the
+      brake doesn't. Lower = more squealing (1.0), higher = only hard
+      braking (6.0). This is the knob that defines what counts as
+      "really braking" - and it is what keeps a STOPPED car silent,
+      because a stopped car does not decelerate.
 
   RefSpeed = 110.0
-      Reference speed (km/h). The volume rises with the speed up to 100% at
-      RefSpeed (and never drops below 25%).
-
-  MinSpeed = 10.0
-      Minimum speed (km/h) to squeal. Below it the script zeroes the pressure:
-      a worn pad does not sing at a standstill. 0 = squeals while stopped
-      (handy to test the sound without moving).
+      Reference speed (km/h). The volume rises with the speed up to 100%
+      at RefSpeed (and never drops below 25%).
 
   Cooldown = 1500
       Milliseconds between two squeals from the same car. 0 = one per brake
       press (same as v2.5.1): the car latches after squealing and only sings
-      again once the brake is really released, with a 250 ms floor so an AI
-      that taps the brake doesn't turn into a machine gun. 1500 = repeats
-      while the brake is held (each squeal lasts 1.2 s, so they do not
-      overlap).
+      again once the brake is really released. 1500 = repeats while the
+      braking is strong, like a real pad (each squeal lasts 1.2 s, so they do
+      not overlap).
 
   Debug = 0
       1 = prints each new car's value on screen.
@@ -188,12 +185,23 @@ I hear no sound at all (neither mine nor the NPCs')
      radius ... m)". Check that the path shown is your sound file.
 
   3. Test WHILE MOVING: get up to street speed and brake. v2.7 is a worn pad,
-     so it sings with the car moving. To test standing still, set MinSpeed = 0
-     in the .ini.
+     so it sings with the car moving. A stopped car is silent by design in
+     v2.8 (it does not decelerate) - to hear it right away, roll a little and
+     brake hard, or listen to a car on the street (the sound is 3D).
 
   4. If it still doesn't sound, set Debug = 1: the script prints the value of
      every new car that goes through it. If no car shows up, the script is not
      running at all (go back to step 1).
+
+It squeals with the car STOPPED / won't stop squealing
+
+  If v2.7 squeals while stopped, that version is still installed: close the
+  game and replace BrakePadSound.cs with v2.8 (the old file only leaves memory
+  when GTA closes). v2.8 does not squeal at a standstill - a stopped car does
+  not decelerate. If you WANT to hear it without moving, it isn't a config
+  thing: v2.8 keys off deceleration, so a stopped car is silent by definition.
+  To hear it right away, roll a little and brake hard - or listen to a car on
+  the street, since the sound is 3D and comes from the car.
 
 --------------------------------------------------------------------------------
 PERFORMANCE
@@ -237,6 +245,6 @@ NPC approach (CLEO+ defaults, script events, audio streams): Junior_Djjr, in
 CLEO+ opcodes used: GET_CAR_VALUE, GET_CAR_PEDALS, GET_VEHICLE_SUBCLASS,
    GET_ANY_CAR_NO_SAVE_RECURSIVE, EXTENDED_CAR_VARS, SET_SCRIPT_EVENT_CAR_CREATE,
    GET_AUDIO_SFX_VOLUME, audio streams.
-Sound in this v2.7: synthesized by tools/make_sound.py (the original mod's sound
+Sound in this v2.8: synthesized by tools/make_sound.py (the original mod's sound
    is not redistributed here).
 ================================================================================

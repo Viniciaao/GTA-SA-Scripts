@@ -1,5 +1,5 @@
 ================================================================================
-          SOM DE PASTILHA DE FREIO GASTA - v2.7 (CLEO+, edicao NPCs)
+          SOM DE PASTILHA DE FREIO GASTA - v2.8 (CLEO+, edicao NPCs)
 ================================================================================
 
 Reescrita do zero em GTA3script do mod "Som de pastilha de freio gasta" v2.5.1
@@ -48,10 +48,12 @@ O QUE MUDOU EM RELACAO AO v2.5.1
 6. O .ini e' lido uma vez so, e o som so e' disparado para carros dentro do
    raio configurado. Detalhes de desempenho na secao "DESEMPENHO".
 
-7. MinSpeed (novo na v2.7). A v2.5.1 cantava com o carro parado; a v2.7 so
-   canta a partir de MinSpeed km/h (10 por padrao), porque pastilha gasta nao
-   canta com o carro parado. Ponha MinSpeed = 0 se quiser ouvir o chiado sem
-   sair do lugar - e' o jeito mais facil de testar o som.
+7. O gatilho e' a DESACELERACAO, como no mod original (isto vale para o
+   jogador e para os NPCs). A v2.7 usava uma "pressao" que ia acumulando e
+   por isso cantava com o carro PARADO; a v2.8 mede a queda de velocidade de
+   verdade, entao soa como na vida real: cantiga quando freia de verdade, e
+   SILENCIO com o carro parado, mesmo com o pe no freio. O ajuste e'
+   BrakeForce (queda minima, em m/s2).
 
 O arquivo MELHORIAS.md tem a lista completa, com o detalhe de implementacao.
 
@@ -111,32 +113,28 @@ CONFIGURACAO (CLEO\BrakePadSound.ini)
       Caminho do som (wav ou mp3).
 
   BrakeThreshold = 0.15
-      Pedal minimo (0 a 1) para contar como freada. Acima de 0.15 o carro esta
-      parado/acelerando e nao chia.
+      Pedal minimo (0 a 1) para contar como freada. Abaixo disso o script
+      ignora o carro (e' a trava contra falso positivo: so conta frenagem
+      com pe mesmo no freio).
 
-  TriggerPressure = 0.08
-      Pressao acumulada minima para soltar o som. E' o que separa "freou de
-      verdade" de "encostou no freio". Menor = mais chiado.
-
-  PressureRate = 5.0
-      Velocidade (por segundo) com que a pressao sobe enquanto o freio esta
-      apertado. Maior = o chiado aparece antes num toque curto.
+  BrakeForce = 2.5
+      Queda minima de velocidade (em m/s2, ou seja, em "g") para o chiado
+      contar. O carro freando de verdade passa facil; um encostinho no freio
+      nao chega. Menor = mais chiado (1.0), maior = so batida forte (6.0).
+      Este e' o botao que define o que e' "frear de verdade" - e' ele que
+      faz o carro PARADO ficar em silencio, porque carro parado nao
+      desacelera.
 
   RefSpeed = 110.0
       Velocidade de referencia (km/h). O volume sobe junto com a velocidade
       ate 100% em RefSpeed (e nunca abaixo de 25%).
 
-  MinSpeed = 10.0
-      Velocidade minima (km/h) para cantar. Abaixo disso o script zera a
-      pressao: pastilha gasta nao canta parado. 0 = canta mesmo parado (util
-      para testar o som sem sair do lugar).
-
   Cooldown = 1500
       Intervalo (ms) entre chiados do mesmo carro. 0 = um por aperto no freio
       (igual a v2.5.1): o carro trava depois de cantar e so volta a cantar
-      quando o freio for solto de verdade, com um piso de 250 ms para o
-      pedaidinho da IA nao virar metralhadeira. 1500 = repete enquanto o freio
-      estiver apertado (cada chiado dura 1,2 s, entao nao se sobrepoe).
+      quando o freio for solto de verdade. 1500 = repete enquanto a frenagem
+      estiver forte, como a pastilha de verdade (cada chiado dura 1,2 s, entao
+      nao se sobrepoem).
 
   Debug = 0
       1 = imprime na tela o valor de cada carro novo que aparece.
@@ -188,11 +186,21 @@ NAO OUVI SOM NENHUM (nem no meu carro, nem no dos NPCs)
 
   3. Teste EM MOVIMENTO: accelerate ate uma velocidade de rua e freie. A v2.7
      e' uma pastilha gasta, entao ela canta com o carro andando. Para testar
-     parado, ponha MinSpeed = 0 no .ini.
+     parado: a v2.8 mede a desaceleracao, entao so canta freando de verdade.
 
   4. Se ainda assim nao tocar, ponha Debug = 1: o script imprime o valor de
      cada carro novo que passa por ele. Se nenhum carro aparecer na tela, o
      script nem esta rodando (volte ao item 1).
+
+O som canta com o carro PARADO / nao para de cantar
+
+  Se a v2.7 canta parado, e' ela ainda instalada: feche o jogo e troque o
+  BrakePadSound.cs pela v2.8 (o arquivo antigo so sai da memoria quando o GTA
+  fecha). A v2.8 nao canta parado - um carro parado nao desacelera. Se voce
+  QUEER testar parado, nao e' por config: a v2.8 usa a desaceleracao, entao um
+  carro parado e' silencio por definicao. Para ouvir na hora sem sair do lugar,
+  ande um pouco e freie forte, ou chame de outro carro da rua - o som e' 3D e
+  sai do carro, da para ouvir o chiado do carro ao lado sem nem estar nele.
 
 --------------------------------------------------------------------------------
 DESEMPENHO
@@ -236,6 +244,6 @@ Abordagem dos NPCs (padrao do CLEO+, eventos e audio stream): Junior_Djjr, no
 Opcoes CLEO+ usadas: GET_CAR_VALUE, GET_CAR_PEDALS, GET_VEHICLE_SUBCLASS,
    GET_ANY_CAR_NO_SAVE_RECURSIVE, EXTENDED_CAR_VARS, SET_SCRIPT_EVENT_CAR_CREATE,
    GET_AUDIO_SFX_VOLUME, audio streams.
-Som desta v2.7: sintetizado por tools/make_sound.py (o do mod original nao e'
+Som desta v2.8: sintetizado por tools/make_sound.py (o do mod original nao e'
    redistribuido aqui).
 ================================================================================

@@ -1,4 +1,4 @@
-# v2.5.1 → v2.7: o que mudou, e por quê
+# v2.5.1 → v2.8: o que mudou, e por quê
 
 Este documento é o detalhe técnico da reescrita. O resumo está no
 [`leiame (ou morra).txt`](leiame%20(ou%20morra).txt) (pt) e no
@@ -308,3 +308,55 @@ l22(0.0) *= l23(5.0)
   buffer, a contagem de slots (32 de 32) e a promessa de "o `.ini` é lido só no
   começo". Reintroduzir o bug da v2.6 faz o teste falhar em duas verificações —
   foi testado justamente assim.
+
+
+## 11. v2.7 → v2.8: voltar a ser natural (desaceleração, não pressão)
+
+O teste de rolagem do jogador na v2.7 levantou dois problemas de *natureza*,
+não de crash:
+
+1. **O som cantava com o carro parado.** Além de ser irreal (pastilha gasta
+   não canta com o carro parado), era resultado direto do modelo da v2.7: uma
+   "pressão" que ia acumulando enquanto o pé ficasse no freio, e que só o corte
+   de velocidade zerava - corte que a própria v2.7 desativava quando o
+   `MinSpeed` era baixo. Um carro parado, com o pé no freio, acumulava
+   pressão até disparar a cantiga.
+
+2. **Não soava "como o original".** O mod v2.5.1 detectava **desaceleração**
+   (comparava a velocidade do frame com a do frame anterior). A v2.7 trocou
+   isso por um modelo de pressão/tempo que, embora mais estável em FPS, mudava
+   o *caráter* do som: ele "decidia" chiar por um contador interno, não pela
+   física da frenagem.
+
+A v2.8 volta ao gatilho do mod original: **a queda de velocidade**, medida em
+**m/s²** (metros por segundo ao quadrado, o popular "g"). O script compara a
+velocidade de cada carro com a do frame anterior e só canta quando a perda
+passa de `BrakeForce` (2.5 por padrão). É a mesma lógica do v2.5.1, com dois
+detalhes a mais:
+
+- A desaceleração é **por segundo** (via `GET_GAME_TIMER`), não por frame, então
+  o mesmo freio é reconhecido igual a 30, 60, 144 ou 240 FPS.
+- Cada carro guarda a **própria velocidade do frame anterior** na sua variável
+  estendida 2, então o script não mantém nenhuma tabela paralela.
+
+Consequências diretas, todas desejadas:
+
+- **Carro parado nunca canta** (um carro parado não desacelera) - a cantiga só
+  aparece quando o carro está mesmo freando. O `BrakeThreshold` (pedal mínimo)
+  continua como trava contra falso positivo, mas o peso da decisão agora é da
+  física, não de um contador.
+- **Freio leve quase não canta**; batida forte canta alto e longo - a
+  intensidade da frenagem é proporcional à intensidade da cantiga, como na
+  vida real.
+- Acelera e depois freia: a primeira frenagem é a mais forte e é a que canta.
+
+O que saiu do `.ini`: `TriggerPressure`, `PressureRate` e `MinSpeed` (chaves
+do modelo de pressão). O que entrou: `BrakeForce` (queda mínima, em m/s²). O
+`Cooldown` e o `Volume` continuam como antes, e o volume ainda escala com a
+velocidade (com a conversão m/s → km/h de 3.6, como o mod original), o pedal
+(com piso de 50%) e o volume de efeitos do menu.
+
+O `tools/test_model.py` foi reescrito em torno do novo núcleo e agora tem uma
+seção dedicada a provar o que o jogador pediu: **carro parado não canta, mesmo
+com o pé no freio, mesmo com `BrakeThreshold = 0`** (seção 1), mais a
+independência de FPS medida no volume do primeiro som (seção 8).
