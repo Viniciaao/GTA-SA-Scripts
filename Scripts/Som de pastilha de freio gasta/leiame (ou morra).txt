@@ -1,5 +1,5 @@
 ================================================================================
-          SOM DE PASTILHA DE FREIO GASTA - v2.6 (CLEO+, edicao NPCs)
+          SOM DE PASTILHA DE FREIO GASTA - v2.7 (CLEO+, edicao NPCs)
 ================================================================================
 
 Reescrita do zero em GTA3script do mod "Som de pastilha de freio gasta" v2.5.1
@@ -35,11 +35,11 @@ O QUE MUDOU EM RELACAO AO v2.5.1
    no data/handling.cfg.
 
 3. O volume deixou de ser fixo: ele cresce com a pressao do pedal e com a
-   velocidade, e segue o volume de efeitos do menu em todos os sons (a correção
+   velocidade, e segue o volume de efeitos do menu em todos os sons (a correcao
    de 2019, que antes so valia para o jogador).
 
 4. Cooldown. Com Cooldown = 0 e' um chiado por aperto no freio, exatamente
-   como a v2.5.1. Com Cooldown = 1100 (o padrao) o chiado se repete enquanto o
+   como a v2.5.1. Com Cooldown = 1500 (o padrao) o chiado se repete enquanto o
    freio estiver apertado, que e' como a pastilha canta de verdade.
 
 5. Tudo independente de FPS (pressao e cooldown sao calculados em segundos e
@@ -47,6 +47,11 @@ O QUE MUDOU EM RELACAO AO v2.5.1
 
 6. O .ini e' lido uma vez so, e o som so e' disparado para carros dentro do
    raio configurado. Detalhes de desempenho na secao "DESEMPENHO".
+
+7. MinSpeed (novo na v2.7). A v2.5.1 cantava com o carro parado; a v2.7 so
+   canta a partir de MinSpeed km/h (10 por padrao), porque pastilha gasta nao
+   canta com o carro parado. Ponha MinSpeed = 0 se quiser ouvir o chiado sem
+   sair do lugar - e' o jeito mais facil de testar o som.
 
 O arquivo MELHORIAS.md tem a lista completa, com o detalhe de implementacao.
 
@@ -118,16 +123,20 @@ CONFIGURACAO (CLEO\BrakePadSound.ini)
       apertado. Maior = o chiado aparece antes num toque curto.
 
   RefSpeed = 110.0
-      Velocidade de referencia (km/h). Abaixo de 12% dela (13 km/h com o padrao)
-      o carro nao chia; o volume sobe junto com a velocidade ate 100% em
-      RefSpeed.
+      Velocidade de referencia (km/h). O volume sobe junto com a velocidade
+      ate 100% em RefSpeed (e nunca abaixo de 25%).
 
-  Cooldown = 1100
+  MinSpeed = 10.0
+      Velocidade minima (km/h) para cantar. Abaixo disso o script zera a
+      pressao: pastilha gasta nao canta parado. 0 = canta mesmo parado (util
+      para testar o som sem sair do lugar).
+
+  Cooldown = 1500
       Intervalo (ms) entre chiados do mesmo carro. 0 = um por aperto no freio
       (igual a v2.5.1): o carro trava depois de cantar e so volta a cantar
       quando o freio for solto de verdade, com um piso de 250 ms para o
-      pedaidinho da IA nao virar metralhadeira. 1100 = repete enquanto o freio
-      estiver apertado.
+      pedaidinho da IA nao virar metralhadeira. 1500 = repete enquanto o freio
+      estiver apertado (cada chiado dura 1,2 s, entao nao se sobrepoe).
 
   Debug = 0
       1 = imprime na tela o valor de cada carro novo que aparece.
@@ -164,6 +173,27 @@ O script nao faz barulho nenhum / nao aparece nada
   instalado (o mod usa opcodes que so o CLEO+ tem - o CLEO 4 puro nao
   funciona, e sem o CLEO+ o script nem chega a rodar).
 
+NAO OUVI SOM NENHUM (nem no meu carro, nem no dos NPCs)
+
+  A v2.6 tinha um bug que zerava a pressao de frenagem, e por isso ela ficava
+  calada em qualquer situacao. A v2.7 ja vem corrigida - mas, se voce ainda
+  esta com a v2.6 instalada, confira esta ordem (o .cs antigo continua valendo
+  ate o GTA fechar):
+
+  1. Feche o jogo, troque o BrakePadSound.cs, abra o jogo de novo. Trocar o
+     .cs com o jogo aberto nao troca nada: o script antigo continua rodando.
+
+  2. Ao abrir o jogo aparece "Som de pastilha v2.7 - <caminho> (ate ...,
+     raio ... m)". Confira se o caminho mostrado e' o do seu arquivo de som.
+
+  3. Teste EM MOVIMENTO: accelerate ate uma velocidade de rua e freie. A v2.7
+     e' uma pastilha gasta, entao ela canta com o carro andando. Para testar
+     parado, ponha MinSpeed = 0 no .ini.
+
+  4. Se ainda assim nao tocar, ponha Debug = 1: o script imprime o valor de
+     cada carro novo que passa por ele. Se nenhum carro aparecer na tela, o
+     script nem esta rodando (volte ao item 1).
+
 --------------------------------------------------------------------------------
 DESEMPENHO
 --------------------------------------------------------------------------------
@@ -191,7 +221,8 @@ O som pode ser refeito com:
      python3 tools/make_sound.py
 
 E o modelo de tempo (pressao, gatilho, cooldown, volume) pode ser conferido
-sem o jogo - 60 casos, incluindo "um som por aperto" em 30/60/144/240 FPS:
+sem o jogo - 81 verificacoes, incluindo "um som por aperto" em 30/60/144/240
+FPS e a ordem dos operandos do CSET (o bug que deixou a v2.6 muda):
 
      python3 tools/test_model.py
 
@@ -205,6 +236,6 @@ Abordagem dos NPCs (padrao do CLEO+, eventos e audio stream): Junior_Djjr, no
 Opcoes CLEO+ usadas: GET_CAR_VALUE, GET_CAR_PEDALS, GET_VEHICLE_SUBCLASS,
    GET_ANY_CAR_NO_SAVE_RECURSIVE, EXTENDED_CAR_VARS, SET_SCRIPT_EVENT_CAR_CREATE,
    GET_AUDIO_SFX_VOLUME, audio streams.
-Som desta v2.6: sintetizado por tools/make_sound.py (o do mod original nao e'
+Som desta v2.7: sintetizado por tools/make_sound.py (o do mod original nao e'
    redistribuido aqui).
 ================================================================================

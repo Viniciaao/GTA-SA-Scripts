@@ -1,4 +1,4 @@
-# v2.5.1 → v2.6: o que mudou, e por quê
+# v2.5.1 → v2.7: o que mudou, e por quê
 
 Este documento é o detalhe técnico da reescrita. O resumo está no
 [`leiame (ou morra).txt`](leiame%20(ou%20morra).txt) (pt) e no
@@ -241,9 +241,70 @@ arquivo para `CLEO\BrakePadSound\brakepad.wav` ou aponte `SoundFile` para ele.
   É de propósito (é o jeito de achar o valor dos carros), mas use só na hora de
   ajustar o corte.
 - **Status de teste:** o source compila limpo com o toolchain do repositório
-  (gta3sc + `cleo.xml` do CLEO+ 1.0.7, 3.571 bytes, SHA-256
-  `9b823354...`) e a lógica foi conferida opcode a opcode contra o código-fonte
+  (gta3sc + `cleo.xml` do CLEO+ 1.0.7, 3.944 bytes, SHA-256
+  `9da5c164...`) e a lógica foi conferida opcode a opcode contra o código-fonte
   do CLEO+ (semântica de `GET_CAR_PEDALS`, `GET_CAR_VALUE`, das variáveis
-  estendidas, do evento de criação e dos streams de áudio), mas **ainda não foi
-  rodado dentro do jogo** — quem instalar, comece com `Debug = 1` e `Radius`
-  alto, e ajuste daí.
+  estendidas, do evento de criação e dos streams de áudio). A v2.6 **rodou
+  dentro do jogo** e foi exatamente o `SCRLog` do jogador que revelou o quarto
+  bug (seção 10). A v2.7 só precisa do teste de rolagem com o carro em
+  movimento — que é o que o bug anterior impedia de fazer.
+
+## 10. v2.6 → v2.7: o quarto bug, e por que ele custou caro
+
+O quarto bug é o mais instrutivo do mod, porque **não dava erro nenhum**:
+compilava limpo, sem warning, e o jogo rodava o script inteiro sem reclamar.
+O sintoma era um só — *nenhum som, nem no carro do jogador, nem no dos NPCs* —
+e nenhuma verificação de mesa pegava ele, porque verificação de mesa não é
+opcode.
+
+### O que acontecia
+
+O script converte o `dt` (inteiro, milissegundos) para float toda vez que o
+frame vira. Isso é feito com `CSET`, e os opcodes `CSET` do gta3sc **têm os
+nomes trocados em relação ao que fazem**:
+
+| opcode | nome no `cleo.xml` do gta3sc | o que ele faz de verdade |
+|---|---|---|
+| 0092 | `CSET_LVAR_INT_TO_LVAR_FLOAT` | **float → int** (o Sanny chama de `22@ = float 17@ to_integer`) |
+| 0093 | `CSET_LVAR_FLOAT_TO_LVAR_INT` | **int → float** |
+
+Nos dois o **destino vem primeiro**. A v2.6 escreveu as três conversões no
+sentido inverso do que o opcode faz, então `fStep` (o quanto de pressão o frame
+soma) valia **0.0 sempre**. Com `fStep = 0`, a pressão nunca subia, nunca
+passava do `TriggerPressure = 0.08`, e o `PlaySqueal` — que fica *depois* desse
+teste — nunca era chamado. Um único erro de operandos matava o mod inteiro, e
+funcionava igual para o jogador e para os NPCs (o caminho é o mesmo, o que até
+fazia o bug parecer "problema de NPC").
+
+O `SCRLog` do jogo mostrou a prova:
+
+```
+iValue  = 46                       // dt em ms, correto
+[0092] l11(46) =# l22(0.0)         // a conversao
+l22(0.0) *= 0.001                   // fStep continua 0.0
+l22(0.0) *= l23(5.0)
+```
+
+### O que a v2.7 faz
+
+- as três conversões na ordem certa (`CSET_LVAR_FLOAT_TO_LVAR_INT fStep
+  iValue`, `CSET_LVAR_FLOAT_TO_LVAR_INT fPress iPress`, `CSET_LVAR_INT_TO_LVAR_FLOAT
+  iPress f`);
+- **`MinSpeed`** no `.ini` (10 km/h por padrão): a pastilha não canta com o
+  carro parado, e `MinSpeed = 0` libera isso para teste;
+- o pedal entra no volume com **piso de 50%** (`0.5 + 0.5 * pedal`): antes, um
+  toque leve de freio (0.2) dava 20% do volume e o chiado sumia no barulho da
+  rua;
+- `Cooldown` padrão 1500 ms (o `.wav` dura 1,2 s, então os chiados não se
+  sobrepõem);
+- `Vehicles` e `Debug` passam a ser lidos **só na inicialização** (antes eram
+  lidos do `.ini` a cada carro novo avaliado, o que contrariava a promessa do
+  cabeçalho);
+- a mensagem de inicialização passou a mostrar o **caminho do arquivo de som que
+  o script está usando de fato** — é a primeira coisa a olhar quando alguém
+  relata "não ouvi som";
+- e, no `tools/test_model.py`, uma seção nova que **lê o `.sc` compilado de
+  verdade** e trava a ordem dos operandos do `CSET`, o `$` do ponteiro do
+  buffer, a contagem de slots (32 de 32) e a promessa de "o `.ini` é lido só no
+  começo". Reintroduzir o bug da v2.6 faz o teste falhar em duas verificações —
+  foi testado justamente assim.

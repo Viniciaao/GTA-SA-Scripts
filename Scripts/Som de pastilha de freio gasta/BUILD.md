@@ -91,10 +91,21 @@ o `cleo.xml` do CLEO+ `v1.0.7`, compila o `.sc` e mostra tamanho + SHA-256 do
 `.cs` gerado. O `.cs` que está no repositório:
 
 ```
-3571 bytes   SHA-256 9b823354db82e98ab0da9d5e70467b581c8d9fff8f2357fe81ec3b04169d02de
+3944 bytes   SHA-256 9da5c16411f71aa990435715fa554e956a019475e3d0ae1ca69764ae160acaa9
 ```
 
-## 5. As cinco armadilhas do gta3script que aparecem neste source
+**Sem cmake?** O `build.sh` exige o `cmake` para compilar o `gta3sc` da fonte.
+Em máquina sem cmake (ou sem rede para instalar) use o
+[`tools/build_gta3sc.sh`](tools/build_gta3sc.sh), que faz a mesma compilação
+chamando o `g++` na mão, com as mesmas flags e a mesma lista de arquivos do
+`CMakeLists.txt`:
+
+```bash
+GTA3SC=$(bash tools/build_gta3sc.sh | tail -1)   # imprime o caminho do gta3sc
+GTA3SC="$GTA3SC" bash tools/build.sh              # e compila o mod
+```
+
+## 5. As seis armadilhas do gta3script que aparecem neste source
 
 1. **Uma operação por expressão.** Isto é erro de sintaxe
    (`expected newline after this token`):
@@ -167,33 +178,58 @@ o `cleo.xml` do CLEO+ `v1.0.7`, compila o `.sc` e mostra tamanho + SHA-256 do
    referência a label no offset zero e o compilador aborta com
    `compiled script references a label at the zero offset`.
 
+6. **Os opcodes `CSET` têm os NOMOS trocados em relação ao que fazem.** Este é
+   o quarto bug deste mod e o mais caro: não dá erro de compilação, não dá
+   warning, e o script simplesmente nunca dispara som. O opcode **0092**,
+   chamado no `cleo.xml` do gta3sc de `CSET_LVAR_INT_TO_LVAR_FLOAT`, na
+   verdade faz **float → int** (é o mesmo 0092 do Sanny, documentado como
+   `22@ = float 17@ to_integer`); o **0093**, chamado de
+   `CSET_LVAR_FLOAT_TO_LVAR_INT`, faz **int → float**. Nos dois o **destino vem
+   primeiro**. Ou seja:
 
-Extras que só aparecem aqui: conversão int↔float é com
-`CSET_LVAR_INT_TO_LVAR_FLOAT` / `CSET_LVAR_FLOAT_TO_LVAR_INT` (misturar `int`
-e `float` na mesma expressão **não** compila), o operador `<>` **não existe**
-(`IF iReg <> 2` dá `expected command`; escreva `IF NOT iReg = 2`) e o evento de
-criação de carro é `SET_SCRIPT_EVENT_CAR_CREATE ON <label> <var>` na 1.0.7 (a
-1.2.0 virou `0/1`).
+   | o que você quer | o que escrever |
+   |---|---|
+   | `fStep = (float)iValue` (int → float) | `CSET_LVAR_FLOAT_TO_LVAR_INT fStep iValue` |
+   | `iPress = (int)f` (float → int) | `CSET_LVAR_INT_TO_LVAR_FLOAT iPress f` |
+
+   A v2.6 escreveu ao contrário (`CSET_LVAR_INT_TO_LVAR_FLOAT iValue fStep`), o
+   `dt` virou `0.0`, a pressão nunca passou de `TriggerPressure` e o mod ficou
+   **mudo no carro do jogador e no dos NPCs** — mesmo com o pedal lido
+   corretamente. A confirmação veio do `SCRLog` do jogo: o `dt` chegava valendo
+   46 ms na linha `CSET` e a variável `fStep` continuava `0.0` na linha
+   seguinte.
+
+   Esse bugesc fugiu de todos os testes de mesa justamente porque eles rodam em
+   Python e não em opcode — por isso a seção 9 do `test_model.py` agora lê o
+   `.sc` e trava a ordem dos operandos.
+
+Extras que só aparecem aqui: conversão int↔float é com os opcodes acima
+(misturar `int` e `float` na mesma expressão **não** compila), o operador `<>`
+**não existe** (`IF iReg <> 2` dá `expected command`; escreva `IF NOT iReg = 2`)
+e o evento de criação de carro é `SET_SCRIPT_EVENT_CAR_CREATE ON <label> <var>`
+na 1.0.7 (a 1.2.0 virou `0/1`).
 
 ## 6. O modelo de tempo (o que dá para testar sem o jogo)
 
 A parte que **não** é opcode puro é o modelo de pressão/cooldown do
 `UpdateCar`, e é justamente onde mora a diferença entre "um som por aperto" e
 metralhadeira. Ele está transcrito linha por linha em
-[`tools/test_model.py`](tools/test_model.py), que roda 60 casos sem precisar do
-jogo:
+[`tools/test_model.py`](tools/test_model.py), que roda 81 verificações sem
+precisar do jogo:
 
 ```bash
 python3 tools/test_model.py
 ```
 
 Cobre: um som por aperto com `Cooldown = 0` em 30/60/144/240 FPS e apertos de
-0,2 s a 12 s; repetição enquanto o freio está apertado com `Cooldown = 1100`; o
-corte de velocidade; `BrakeThreshold`; a escala de volume (pedal, velocidade,
-volume do menu, teto em 1,0); `PressureRate`/`TriggerPressure` em milissegundos
-(30 FPS e 240 FPS dão o mesmo resultado); e o pedal da IA pisando sem virar
-metralhadeira. Se você mexer no `UpdateCar` ou nos defaults do `.ini`, rode
-isso antes de brigar com o jogo.
+0,2 s a 12 s; repetição enquanto o freio está apertado com `Cooldown = 1500`; o
+corte de `MinSpeed`; `BrakeThreshold`; a escala de volume (pedal com piso de
+50%, velocidade, volume do menu, teto em 1,0); `PressureRate`/`TriggerPressure`
+em milissegundos (30 FPS e 240 FPS dão o mesmo resultado); o pedal da IA pisando
+sem virar metralhadeira; e a **conferência do source** (ordem dos operandos do
+`CSET`, o `$` do ponteiro do buffer, a contagem de slots ≤ 32 e a promessa de
+"o `.ini` é lido só no começo"). Se você mexer no `UpdateCar`, nos defaults do
+`.ini` ou nas conversões, rode isso antes de brigar com o jogo.
 
 ## 7. O som (`brakepad.wav`)
 
@@ -207,6 +243,14 @@ redistribuir. Para usar o som do mod v2.5.1, copie o `.wav` dele para
 python3 tools/make_sound.py                 # recria o wav padrão
 python3 tools/make_sound.py --seed 1234     # outra variação
 ```
+
+Os opcodes de audio stream (`0xAC1` `LOAD_3D_AUDIO_STREAM`, `0xAC5`
+`SET_PLAY_3D_AUDIO_STREAM_AT_CAR`, e `0xAC0`/`0xABC`/`0xAAD` para loop, volume
+e estado) são **nativos do San Andreas** — funcionam com CLEO+ sem o CLEO 4.
+Eles aceitam `.wav` (PCM) e `.mp3`; para tocar, prefira **mono a 22050 Hz**, que
+é a taxa do motor de áudio do jogo. O arquivo pode ser outro: é só apontar a
+chave `SoundFile` do `.ini` para ele (o caminho tem que caber em 127
+caracteres).
 
 ## 8. Instalar
 

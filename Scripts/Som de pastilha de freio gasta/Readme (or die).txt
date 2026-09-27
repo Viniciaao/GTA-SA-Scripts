@@ -1,5 +1,5 @@
 ================================================================================
-        WORN BRAKE PAD SOUND - v2.6 (CLEO+, NPC edition)
+        WORN BRAKE PAD SOUND - v2.7 (CLEO+, NPC edition)
 ================================================================================
 
 Rewritten from scratch in GTA3script out of the "Som de pastilha de freio
@@ -39,7 +39,7 @@ WHAT CHANGED FROM v2.5.1
    fix, which used to only apply to the player).
 
 4. Cooldown. With Cooldown = 0 you get one squeal per brake press, exactly like
-   v2.5.1. With Cooldown = 1100 (the default) the squeal repeats while the brake
+   v2.5.1. With Cooldown = 1500 (the default) the squeal repeats while the brake
    is held, which is what a real worn pad does.
 
 5. Everything is frame-rate independent (pressure and cooldown are computed in
@@ -47,6 +47,11 @@ WHAT CHANGED FROM v2.5.1
 
 6. The .ini is read once, and the sound is only triggered for cars inside the
    configured radius. See PERFORMANCE below.
+
+7. MinSpeed (new in v2.7). v2.5.1 squealed with the car standing still; v2.7
+   only squeals from MinSpeed km/h on (10 by default), because a worn pad does
+   not sing at a standstill. Set MinSpeed = 0 if you want to hear the squeal
+   without moving - it is the easiest way to test the sound.
 
 MELHORIAS.md (Portuguese) has the full list with implementation details.
 
@@ -118,15 +123,21 @@ CONFIGURATION (CLEO\BrakePadSound.ini)
       Higher = the squeal shows up sooner on a short tap.
 
   RefSpeed = 110.0
-      Reference speed (km/h). Below 12% of it (13 km/h by default) the car
-      doesn't squeal, and the volume rises with speed up to 100% at RefSpeed.
+      Reference speed (km/h). The volume rises with the speed up to 100% at
+      RefSpeed (and never drops below 25%).
 
-  Cooldown = 1100
+  MinSpeed = 10.0
+      Minimum speed (km/h) to squeal. Below it the script zeroes the pressure:
+      a worn pad does not sing at a standstill. 0 = squeals while stopped
+      (handy to test the sound without moving).
+
+  Cooldown = 1500
       Milliseconds between two squeals from the same car. 0 = one per brake
       press (same as v2.5.1): the car latches after squealing and only sings
       again once the brake is really released, with a 250 ms floor so an AI
-      that taps the brake doesn't turn into a machine gun. 1100 = repeats
-      while the brake is held.
+      that taps the brake doesn't turn into a machine gun. 1500 = repeats
+      while the brake is held (each squeal lasts 1.2 s, so they do not
+      overlap).
 
   Debug = 0
       1 = prints each new car's value on screen.
@@ -163,6 +174,27 @@ Nothing happens at all
   installed - the mod uses opcodes only CLEO+ has, so plain CLEO 4 won't do
   (and without CLEO+ the script doesn't even start).
 
+I hear no sound at all (neither mine nor the NPCs')
+
+  v2.6 had a bug that zeroed the brake pressure, so it stayed silent in every
+  situation. v2.7 ships that fixed - but if you are still running v2.6, follow
+  this order (an old .cs keeps running until GTA is closed):
+
+  1. Close the game, replace BrakePadSound.cs, start the game again. Replacing
+     the .cs while the game is open changes nothing: the old script keeps
+     running.
+
+  2. On startup the game now prints "Som de pastilha v2.7 - <path> (until ...,
+     radius ... m)". Check that the path shown is your sound file.
+
+  3. Test WHILE MOVING: get up to street speed and brake. v2.7 is a worn pad,
+     so it sings with the car moving. To test standing still, set MinSpeed = 0
+     in the .ini.
+
+  4. If it still doesn't sound, set Debug = 1: the script prints the value of
+     every new car that goes through it. If no car shows up, the script is not
+     running at all (go back to step 1).
+
 --------------------------------------------------------------------------------
 PERFORMANCE
 --------------------------------------------------------------------------------
@@ -190,7 +222,7 @@ The sound can be regenerated with:
      python3 tools/make_sound.py
 
 And the timing model (pressure, trigger, cooldown, volume) can be checked
-without the game - 60 cases, including "one squeal per press" at
+without the game - 81 checks, including "one squeal per press" at
 30/60/144/240 FPS:
 
      python3 tools/test_model.py
@@ -205,6 +237,6 @@ NPC approach (CLEO+ defaults, script events, audio streams): Junior_Djjr, in
 CLEO+ opcodes used: GET_CAR_VALUE, GET_CAR_PEDALS, GET_VEHICLE_SUBCLASS,
    GET_ANY_CAR_NO_SAVE_RECURSIVE, EXTENDED_CAR_VARS, SET_SCRIPT_EVENT_CAR_CREATE,
    GET_AUDIO_SFX_VOLUME, audio streams.
-Sound in this v2.6: synthesized by tools/make_sound.py (the original mod's sound
+Sound in this v2.7: synthesized by tools/make_sound.py (the original mod's sound
    is not redistributed here).
 ================================================================================

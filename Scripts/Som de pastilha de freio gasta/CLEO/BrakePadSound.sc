@@ -1,6 +1,6 @@
 /*
     ============================================================================
-    SOM DE PASTILHA DE FREIO GASTA - v2.6 (CLEO+, edicao NPCs)
+    SOM DE PASTILHA DE FREIO GASTA - v2.7 (CLEO+, edicao NPCs)
     ----------------------------------------------------------------------------
     Reescrito do zero em gta3script (gta3sc) a partir do mod original
     "Som de pastilha de freio gasta" v2.5.1 (Amilton, Fabio, Junior_Djjr),
@@ -31,14 +31,18 @@
     4. Sons 3D de verdade: a pastilha e' do carro que esta freando, com a
        atenuacao por distancia do proprio jogo.
     5. Cooldown: com Cooldown = 0 o chiado acontece UMA vez a cada aperto no
-       freio (comportamento da v2.5.1). Com Cooldown = 1100 (padrao) ele se
+       freio (comportamento da v2.5.1). Com Cooldown = 1500 (padrao) ele se
        repete enquanto o freio estiver apertado, que e' como funciona na vida
        real (a pastilha canta durante a frenagem).
     6. Independente de FPS: pressao, cooldown e dt sao calculados em segundos
        e milissegundos (GET_GAME_TIMER), e nao "por frame".
-    7. Pouco I/O: o .ini e' lido uma vez no comeco. O som so e' disparado para
+    7. Pouco I/O: o .ini e' lido UMA vez, no comeco. O som so e' disparado para
        carros dentro do raio (Radius), com motor ligado, com valor dentro do
-       limite e com o pedal mesmo apertado.
+       limite e com o pedal mesmo apertado. A velocidade minima (MinSpeed) e a
+       leitura do .ini tambem sao unicas, por frame e por carro, respectivamente.
+    8. MinSpeed no .ini: a v2.5.1 cantava com o carro parado; aqui a pastilha
+       so canta a partir de MinSpeed km/h (10 por padrao). Ponha 0 se quiser
+       ouvir o chiado mesmo com o carro parado - util para testar.
 
     DESEMPENHO (o ponto que mais pesa quando o mod roda no mundo inteiro)
     ============================================================================
@@ -70,11 +74,37 @@
     algumas variaveis em trechos onde o valor delas ja morreu - por exemplo
     iValue, que e' o dt no comeco do frame e o "valor do carro" dentro da
     avaliacao, e iNext, que so vive dentro do UpdateCar e tambem guarda a
-    leitura do Debug. Os pontos de reuso sempre estao comentados.
+    leitura do modelo no Debug. Os pontos de reuso sempre estao comentados.
+    Este script usa 32 dos 32 slots: qualquer variavel nova exige apagar
+    outra.
 
     E o caminho do arquivo de som nao cabe em text label nenhum: 7 ou 15
     caracteres nao armazenam um caminho de 30 e poucos. Ele vai para um buffer
     de 128 bytes na area de dados (txtSoundBuffer), acessado por pBuffer.
+
+    ARMADILHAS QUE JA MORDERAM ESTE MOD (leia antes de mexer no codigo)
+    ============================================================================
+    A1. Text label de 7/15 caracteres. Um caminho de arquivo truncava e o
+        DOES_FILE_EXIST dava falso: "arquivo de som nao encontrado" mesmo
+        com o arquivo no lugar. Resolvido na v2.6 com buffer de 128 bytes.
+
+    A2. O ponteiro do buffer precisa do cifrao. E' GET_LABEL_POINTER
+        txtSoundBuffer (pBuffer) e depois $pBuffer - sem o $, o nome da
+        variavel vira o proprio texto e a funcao le um caminho chamado
+        "pBuffer".
+
+    A3. CSET tem os NOMES trocados em relacao ao que ele faz. O opcode 0092,
+        chamado de CSET_LVAR_INT_TO_LVAR_FLOAT, na verdade faz FLOAT -> INT
+        (o mesmo 0092 do Sanny e' "22@ = float 17@ to_integer"); o 0093,
+        chamado de CSET_LVAR_FLOAT_TO_LVAR_INT, faz INT -> FLOAT. Nos dois o
+        DESTINO vem primeiro. Como a v2.6 escrevia no sentido inverso, o dt
+        virava 0.0, a pressao de frenagem nunca passava do gatilho e o mod
+        nao tocava SOM NENHUM - nem no carro do jogador, nem no de NPC. Foi
+        o quarto bug deste mod, e ele nao aparecia em nenhum teste de mesa:
+        so apareceu no log de execucao (SCRLog) do jogo.
+
+    A4. Recarregar o jogo depois de trocar a .cs. O script ja carregado em
+        memoria continua o antigo ate o GTA fechar.
 
     Compilacao: veja BUILD.md / tools/build.sh nesta pasta.
 */
@@ -86,9 +116,9 @@ NOP
 // ------------------------------------------------------------------ variaveis
 LVAR_INT hVeh hNewCar hStream pBuffer
 LVAR_INT iSearch iReg iPress iNext iNow iPrevTime iSounds
-LVAR_INT iValue iMinValue iMaxValue iCooldown
+LVAR_INT iValue iMinValue iMaxValue iCooldown iVehicles iDebug
 LVAR_FLOAT x y z fBrake fPress fVol f fStep fRate
-LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
+LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed fMinSpeed
 
     // ============================================================ inicializacao
     WAIT 0
@@ -133,6 +163,30 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
         ENDWHILE
     ENDIF
 
+    // ---- quais veiculos cantam (0 = so carros, 1 = + motos/quadriciclos) ----
+    IF NOT READ_INT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "Vehicles" iVehicles
+        WRITE_INT_TO_INI_FILE 0 "CLEO\BrakePadSound.ini" "Config" "Vehicles"
+        iVehicles = 0
+    ENDIF
+    IF iVehicles < 0
+        iVehicles = 0
+    ENDIF
+    IF iVehicles > 1
+        iVehicles = 1
+    ENDIF
+
+    // ---- depuracao: imprime o valor de cada carro novo que aparece ----
+    IF NOT READ_INT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "Debug" iDebug
+        WRITE_INT_TO_INI_FILE 0 "CLEO\BrakePadSound.ini" "Config" "Debug"
+        iDebug = 0
+    ENDIF
+    IF iDebug < 0
+        iDebug = 0
+    ENDIF
+    IF iDebug > 1
+        iDebug = 1
+    ENDIF
+
     // ---- valor do carro (vem da handling) ----
     IF NOT READ_INT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "MinValue" iMinValue
         WRITE_INT_TO_INI_FILE 0 "CLEO\BrakePadSound.ini" "Config" "MinValue"
@@ -172,9 +226,17 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
         WRITE_FLOAT_TO_INI_FILE 110.0 "CLEO\BrakePadSound.ini" "Config" "RefSpeed"
         fRefSpeed = 110.0
     ENDIF
+    // Velocidade minima para cantar, em km/h. O script compara em "~m/s" (o
+    // que GET_CAR_SPEED devolve), entao a divisao por 3.6 acontece uma vez
+    // aqui e o laco principal so compara.
+    IF NOT READ_FLOAT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "MinSpeed" fMinSpeed
+        WRITE_FLOAT_TO_INI_FILE 10.0 "CLEO\BrakePadSound.ini" "Config" "MinSpeed"
+        fMinSpeed = 10.0
+    ENDIF
+    fMinSpeed /= 3.6
     IF NOT READ_INT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "Cooldown" iCooldown
-        WRITE_INT_TO_INI_FILE 1100 "CLEO\BrakePadSound.ini" "Config" "Cooldown"
-        iCooldown = 1100
+        WRITE_INT_TO_INI_FILE 1500 "CLEO\BrakePadSound.ini" "Config" "Cooldown"
+        iCooldown = 1500
     ENDIF
 
     // ---- protecoes contra .ini editado na mao ----
@@ -183,6 +245,9 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
     ENDIF
     IF iCooldown < 0
         iCooldown = 0
+    ENDIF
+    IF fMinSpeed < 0.0
+        fMinSpeed = 0.0
     ENDIF
     IF fRefSpeed < 10.0
         fRefSpeed = 10.0
@@ -209,7 +274,10 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
     ENDWHILE
 
     GET_GAME_TIMER (iPrevTime)
-    PRINT_FORMATTED_NOW "Som de pastilha de freio v2.6 (CLEO+) - vale ate %d, raio %f m" 4000 iMaxValue fRadius
+    // A mensagem mostra o caminho que o script REALMENTE esta usando. Se o
+    // jogo mostra outra coisa aqui, o problema esta no BrakePadSound.ini (ou no
+    // ModLoader, que reescreve o .ini na pasta CLEO do mod).
+    PRINT_FORMATTED_NOW "Som de pastilha v2.7 - %s (ate %d, raio %f m)" 5000 $pBuffer iMaxValue fRadius
 
     // =================================================================== laco
     WHILE TRUE
@@ -228,7 +296,14 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
         IF iValue > 200
             iValue = 200
         ENDIF
-        CSET_LVAR_INT_TO_LVAR_FLOAT iValue fStep
+        // CSET tem os NOMES trocados em relacao ao que ele faz (ver a nota
+        // "ARMADILHA 4" no cabecalho): o 0092 e' float->int e o 0093 e' int->float,
+        // e o destino vem PRIMEIRO. Para fStep = (float)dt uso o 0093, ou seja,
+        // CSET_LVAR_FLOAT_TO_LVAR_INT com o destino na frente. Escrito ao
+        // contrario (como estava antes), o dt virava 0.0, a pressao nunca
+        // subia acima do gatilho e o mod NAO TOCAVA NENHUM SOM - nem no carro
+        // do jogador, nem no dos NPCs.
+        CSET_LVAR_FLOAT_TO_LVAR_INT fStep iValue
         fStep *= 0.001
         fStep *= fRate          // quanto a pressao sobe neste frame
 
@@ -277,11 +352,11 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
     // iReg entra aqui valendo 0 e sai com 1 (pode chiar) ou 2 (descartado).
     EvaluateCar:
         // ---- tipo de veiculo ----
-        // iValue = Vehicles (0 = so carros; 1 = carros + motos/quadriciclos).
-        // Aereo e aquatico nunca chiama: o "freio" deles nao e' pastilha.
-        READ_INT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "Vehicles" iValue
+        // iVehicles vem da inicializacao (0 = so carros; 1 = carros +
+        // motos/quadriciclos). Aereo e aquatico nunca chiama: o "freio" deles
+        // nao e' pastilha.
         GET_VEHICLE_SUBCLASS hVeh (iReg)
-        IF iValue = 0
+        IF iVehicles = 0
             IF iReg = VEHICLE_SUBCLASS_AUTOMOBILE
                 GOTO EvalValue
             ENDIF
@@ -303,10 +378,9 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
         // cortes: e' assim que se descobre o MinValue/MaxValue certo (se o
         // print viesse depois, so apareceria o que ja foi aceito).
         // iNext so e' usado dentro do UpdateCar, entao serve de rascunho aqui.
-        GET_CAR_MODEL hVeh (iReg)
-        READ_INT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "Debug" iNext
-        IF iNext = 1
-            PRINT_FORMATTED_NOW "modelo %d = %d (corte %d..%d)" 2500 iReg iValue iMinValue iMaxValue
+        IF iDebug = 1
+            GET_CAR_MODEL hVeh (iNext)
+            PRINT_FORMATTED_NOW "modelo %d = %d (corte %d..%d)" 2500 iNext iValue iMinValue iMaxValue
         ENDIF
 
         IF iValue < iMinValue
@@ -332,7 +406,7 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
         // var 2 = pressao (x1000) | var 3 = instante do proximo som permitido
         GET_EXTENDED_CAR_VAR hVeh AUTO 2 iPress
         GET_EXTENDED_CAR_VAR hVeh AUTO 3 iNext
-        CSET_LVAR_INT_TO_LVAR_FLOAT iPress fPress
+        CSET_LVAR_FLOAT_TO_LVAR_INT fPress iPress
         fPress *= 0.001
 
         // ---- pressao de frenagem: sobe pisando, desce soltando ----
@@ -341,8 +415,10 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
             f *= fBrake
             fPress += f
         ELSE
+            // Soltou o pedal: a pressao cai o DOBRO do passo, para o chiado
+            // morrer rapido em vez de ficar "grudado" no carro.
             f = fStep
-            f += fStep
+            f *= 2.0
             fPress -= f
         ENDIF
         IF fPress > 1.0
@@ -353,9 +429,10 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
         ENDIF
 
         // ---- parado ou quase parado: a pastilha nao canta ----
-        f = fVol
-        f /= fRefSpeed
-        IF f < 0.12
+        // fVol esta em km/h; fMinSpeed foi convertido para a mesma unidade do
+        // GET_CAR_SPEED na inicializacao. MinSpeed = 0 desliga este corte (util
+        // para ouvir o chiado com o carro parado).
+        IF fVol < fMinSpeed
             fPress = 0.0
         ENDIF
 
@@ -398,7 +475,7 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
         // a var. estendida guarda inteiro: pressao x1000 (0.001 de precisao)
         f = fPress
         f *= 1000.0
-        CSET_LVAR_FLOAT_TO_LVAR_INT f iPress
+        CSET_LVAR_INT_TO_LVAR_FLOAT iPress f
         SET_EXTENDED_CAR_VAR hVeh AUTO 2 iPress
         RETURN
 
@@ -416,8 +493,14 @@ LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
 
         GET_AUDIO_SFX_VOLUME (fVol)     // volume de efeitos do menu (0xB5FCCC)
         fVol *= fVolume
+        // A pressao do pedal pesa no volume, mas so depois de um piso de 50%:
+        // um toque leve de freio (0.2 de pedal) daria 20% do volume e o chiado
+        // sumiria no meio do barulho da rua. Aqui 0 vira 0.5 e 1.0 continua
+        // 1.0. fBrake ja e' lido de novo no proximo frame.
+        fBrake *= 0.5
+        fBrake += 0.5
         fVol *= fBrake
-        fVol *= f
+        fVol *= f                      // f = speed/RefSpeed, com piso de 0.25
         CLAMP_FLOAT fVol 0.0 1.0 (fVol)
 
         // Teto de 4 sons por frame: uma batida de 15 carros na sua frente nao
