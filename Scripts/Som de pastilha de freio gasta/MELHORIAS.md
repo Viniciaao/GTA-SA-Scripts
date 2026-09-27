@@ -148,6 +148,26 @@ frame) e o "um som por aperto" disparando a cada frame. O piso de 250 ms também
 nasceu dele, do caso "IA pisando 5 vezes em 4 s", que rendia dezenas de sons
 por segundo.
 
+### O terceiro bug: o caminho do som era curto demais (achado por quem instalou)
+
+A primeira build publicada avisava "arquivo de som não encontrado" mesmo com o
+arquivo no lugar. A causa era o limite do `LVAR_TEXT_LABEL16`: **text label
+guarda 7 (`TEXT_LABEL`) ou 15 (`TEXT_LABEL16`) caracteres** — o último byte é o
+terminador nulo — e o caminho `CLEO\BrakePadSound\brakepad.wav` tem 31. O
+caminho era truncado, o `DOES_FILE_EXIST` respondia não, e o script parava com
+aquela mensagem.
+
+A correção é o caminho idiomático do gta3script para string comprida: um
+**buffer de 128 bytes na área de dados** (`txtSoundBuffer`, alcançado por
+`GET_LABEL_POINTER` num `LVAR_INT`), que cabe 127 caracteres, custa **1 slot
+só** e ainda libera os 4 slots do text label. O IR2 do compilador confirma o
+que cada forma significa (`GET_LABEL_POINTER %MAIN 3@`,
+`READ_STRING_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "SoundFile" 3@`,
+`DOES_FILE_EXIST 3@`). A mensagem de erro agora mostra o caminho que ele
+tentou, e os readmes ganharam uma seção de problemas com a regra do ModLoader
+(ele copia a pasta `cleo` do mod para a `CLEO` do jogo, e só enxerga `.ini`
+dentro de uma pasta `CLEO`).
+
 ## 6. Desempenho: como o "todo mundo" cabe no frame
 
 O laço visita até ~200 slots do pool de veículos por frame. Se cada visita
@@ -221,8 +241,8 @@ arquivo para `CLEO\BrakePadSound\brakepad.wav` ou aponte `SoundFile` para ele.
   É de propósito (é o jeito de achar o valor dos carros), mas use só na hora de
   ajustar o corte.
 - **Status de teste:** o source compila limpo com o toolchain do repositório
-  (gta3sc + `cleo.xml` do CLEO+ 1.0.7, 3.360 bytes, SHA-256
-  `204fb0b3...`) e a lógica foi conferida opcode a opcode contra o código-fonte
+  (gta3sc + `cleo.xml` do CLEO+ 1.0.7, 3.571 bytes, SHA-256
+  `9b823354...`) e a lógica foi conferida opcode a opcode contra o código-fonte
   do CLEO+ (semântica de `GET_CAR_PEDALS`, `GET_CAR_VALUE`, das variáveis
   estendidas, do evento de criação e dos streams de áudio), mas **ainda não foi
   rodado dentro do jogo** — quem instalar, comece com `Debug = 1` e `Radius`

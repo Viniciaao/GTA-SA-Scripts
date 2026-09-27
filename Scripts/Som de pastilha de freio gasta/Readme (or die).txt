@@ -132,6 +132,38 @@ CONFIGURATION (CLEO\BrakePadSound.ini)
       1 = prints each new car's value on screen.
 
 --------------------------------------------------------------------------------
+TROUBLESHOOTING
+--------------------------------------------------------------------------------
+"Brake pad sound: sound file not found"
+
+  The message shows the exact path the script looked for. Check that the file
+  really is in CLEO\BrakePadSound\ **in the GTA folder**, not inside the mod
+  folder. If you install with the ModLoader, remember it copies the contents
+  of the mod's "cleo" folder into the game's CLEO folder - after starting the
+  game once, look in the GTA CLEO folder to see whether the .ini, the .cs and
+  the .wav made it there.
+
+  Same rule for the .ini: the ModLoader only sees an .ini that lives inside a
+  "CLEO" folder inside a mod folder. Building the mod by hand? The file has
+  to be CLEO\BrakePadSound.ini (not in the mod root).
+
+  The v2.5.1 sound is an .mp3? Fine - point the SoundFile key at it (wav and
+  mp3 both work) - but check the name matches, extension included.
+
+"It runs, but the car in the game is worth too much and doesn't squeal"
+
+  Set Debug = 1 in the .ini: the script prints each car's value on screen.
+  Adjust MaxValue from what you see. (The value is the same one the game uses
+  for the vehicle export mission: the "Monetary Value" column of the car's
+  handling.)
+
+Nothing happens at all
+
+  Check that the .cs is in the game's CLEO folder and that CLEO+ 1.0.7+ is
+  installed - the mod uses opcodes only CLEO+ has, so plain CLEO 4 won't do
+  (and without CLEO+ the script doesn't even start).
+
+--------------------------------------------------------------------------------
 PERFORMANCE
 --------------------------------------------------------------------------------
 The script walks the game's vehicle pool (up to ~200 cars) once per frame, but

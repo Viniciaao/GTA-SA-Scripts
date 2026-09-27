@@ -64,13 +64,17 @@
     ============================================================================
     Um script CLEO tem no maximo 32 "slots" de variavel local, e o preco nao e'
     igual para todo mundo: um LVAR_INT/LVAR_FLOAT custa 1 slot, um
-    LVAR_TEXT_LABEL16 (8 bytes) custa 4 e um LVAR_TEXT_LABEL (16 bytes) custa
-    2. Nao existe escopo por label, entao GOSUB nao abre um conjunto novo de
-    variaveis. Por isso o codigo reaproveita algumas variaveis em trechos onde
-    o valor delas ja morreu - por exemplo iValue, que e' o dt no comeco do frame
-    e o "valor do carro" dentro da avaliacao, e iNext, que so vive dentro do
-    UpdateCar e tambem guarda a leitura do Debug. Os pontos de reuso sempre
-    estao comentados.
+    LVAR_TEXT_LABEL (8 bytes, 7 caracteres) custa 2 e um LVAR_TEXT_LABEL16
+    (16 bytes, 15 caracteres) custa 4. Nao existe escopo por label, entao GOSUB
+    nao abre um conjunto novo de variaveis. Por isso o codigo reaproveita
+    algumas variaveis em trechos onde o valor delas ja morreu - por exemplo
+    iValue, que e' o dt no comeco do frame e o "valor do carro" dentro da
+    avaliacao, e iNext, que so vive dentro do UpdateCar e tambem guarda a
+    leitura do Debug. Os pontos de reuso sempre estao comentados.
+
+    E o caminho do arquivo de som nao cabe em text label nenhum: 7 ou 15
+    caracteres nao armazenam um caminho de 30 e poucos. Ele vai para um buffer
+    de 128 bytes na area de dados (txtSoundBuffer), acessado por pBuffer.
 
     Compilacao: veja BUILD.md / tools/build.sh nesta pasta.
 */
@@ -80,12 +84,11 @@ SCRIPT_START
 NOP
 
 // ------------------------------------------------------------------ variaveis
-LVAR_INT hVeh hNewCar hStream
+LVAR_INT hVeh hNewCar hStream pBuffer
 LVAR_INT iSearch iReg iPress iNext iNow iPrevTime iSounds
 LVAR_INT iValue iMinValue iMaxValue iCooldown
 LVAR_FLOAT x y z fBrake fPress fVol f fStep fRate
 LVAR_FLOAT fBrakeMin fTrigger fVolume fRadius fRefSpeed
-LVAR_TEXT_LABEL16 txtSound
 
     // ============================================================ inicializacao
     WAIT 0
@@ -93,7 +96,13 @@ LVAR_TEXT_LABEL16 txtSound
 
     // O caminho do .ini aparece como literal nos comandos abaixo: um text
     // label custaria 4 dos 32 slots do script (e um slot so para o .wav).
-    txtSound = "CLEO\BrakePadSound\brakepad.wav"
+    //
+    // O caminho do SOM vai para um buffer de 128 bytes (pBuffer) e nao para um
+    // text label, porque text label so tem 7 (TEXT_LABEL) ou 15 (TEXT_LABEL16)
+    // caracteres e um caminho de arquivo tem 30 e poucos. Ler a string direto
+    // num text label truncava o caminho e o DOES_FILE_EXIST dava falso mesmo
+    // com o arquivo no lugar certo. Buffer = ate 127 caracteres, 1 slot so.
+    GET_LABEL_POINTER txtSoundBuffer (pBuffer)
 
     // iValue ainda nao e' usada pelo laco principal aqui, entao serve de
     // rascunho para as chaves lidas so no comeco do script.
@@ -109,14 +118,16 @@ LVAR_TEXT_LABEL16 txtSound
 
     // ---- arquivo de som (tem que vir antes da checagem, senao o script
     // ---- conferiria sempre o caminho padrao e nunca o que voce configurou) ---
-    IF NOT READ_STRING_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "SoundFile" txtSound
+    IF NOT READ_STRING_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "SoundFile" pBuffer
         WRITE_STRING_TO_INI_FILE "CLEO\BrakePadSound\brakepad.wav" "CLEO\BrakePadSound.ini" "Config" "SoundFile"
-        READ_STRING_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "SoundFile" txtSound
+        READ_STRING_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "SoundFile" pBuffer
     ENDIF
 
-    // Sem arquivo de som nao adianta inspecionar carro nenhum: avisa e para.
-    IF NOT DOES_FILE_EXIST $txtSound
-        PRINT_FORMATTED_NOW "~r~Som de pastilha: arquivo de som nao encontrado: %s" 8000 $txtSound
+    // Sem arquivo de som nao adianta inspecionar carro nenhum: avisa (com o
+    // caminho que ele tentou) e para.
+    IF NOT DOES_FILE_EXIST $pBuffer
+        PRINT_FORMATTED_NOW "~r~Som de pastilha: nao achei o arquivo de som:~n~w~%s" 10000 $pBuffer
+        PRINT_STRING_NOW "~r~Coloque o arquivo em CLEO\BrakePadSound\ ou aponte o caminho na chave SoundFile do BrakePadSound.ini" 10000
         WHILE TRUE
             WAIT 0
         ENDWHILE
@@ -413,7 +424,7 @@ LVAR_TEXT_LABEL16 txtSound
         // pode virar 15 chiados ao mesmo tempo. (O iSounds volta a zero a cada
         // frame; a avaliacao de carro nao mexe nele.)
         IF iSounds < 4
-            IF LOAD_3D_AUDIO_STREAM $txtSound (hStream)
+            IF LOAD_3D_AUDIO_STREAM $pBuffer (hStream)
                 SET_AUDIO_STREAM_LOOPED hStream FALSE
                 SET_PLAY_3D_AUDIO_STREAM_AT_CAR hStream hVeh
                 SET_AUDIO_STREAM_VOLUME hStream fVol
@@ -424,3 +435,17 @@ LVAR_TEXT_LABEL16 txtSound
         RETURN
 }
 SCRIPT_END
+
+// ============================================================================
+// AREA DE DADOS
+// ----------------------------------------------------------------------------
+// txtSoundBuffer = 128 bytes zerados onde o script guarda o caminho do arquivo
+// de som lido do .ini (ate 127 caracteres). Um LVAR_TEXT_LABEL nao serve aqui:
+// text label guarda so 7 (TEXT_LABEL) ou 15 (TEXT_LABEL16) caracteres, e um
+// caminho de arquivo tem 30 e poucos - o caminho era truncado e o script
+// achava que o arquivo nao existia. Ver BUILD.md, armadilha 3.
+// ============================================================================
+txtSoundBuffer:
+DUMP
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ENDDUMP

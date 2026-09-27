@@ -133,6 +133,38 @@ CONFIGURACAO (CLEO\BrakePadSound.ini)
       1 = imprime na tela o valor de cada carro novo que aparece.
 
 --------------------------------------------------------------------------------
+PROBLEMAS
+--------------------------------------------------------------------------------
+"Som de pastilha: nao achei o arquivo de som"
+
+  A mensagem mostra o caminho exato que o script procurou. Confira se o
+  arquivo existe em CLEO\BrakePadSound\ **na pasta do GTA**, e nao dentro da
+  pasta do mod. Quem instala pelo ModLoader tem de lembrar que o ModLoader
+  copia o conteudo da pasta "cleo" do mod para a CLEO do jogo - depois de
+  entrar no jogo uma vez, olhe a pasta CLEO do GTA para conferir se o .ini, o
+  .cs e o .wav chegaram la.
+
+  O mesmo vale para o .ini: o ModLoader so enxerga um .ini que esteja dentro
+  de uma pasta "CLEO" dentro da pasta do mod. Se voce montou o mod a mao, o
+  arquivo tem que estar em CLEO\BrakePadSound.ini (nao na raiz do mod).
+
+  O som do mod v2.5.1 e' .mp3? Sem problema, aponte a chave SoundFile para
+  ele (wav e mp3 funcionam) - mas confere se o nome bate, incluindo a
+  extensao: o caminho tem que ser o do arquivo que existe.
+
+"Funciona, mas o carro do jogo esta com o valor alto demais e nao chia"
+
+  Ligue Debug = 1 no .ini: o script imprime o valor de cada carro na tela.
+  Ajusta o MaxValue pelo que aparecer. (O valor e' o mesmo que o jogo usa na
+  missao de exportar veiculos: a coluna "Monetary Value" do handling do carro.)
+
+O script nao faz barulho nenhum / nao aparece nada
+
+  Confirme que o .cs esta na CLEO do jogo e que o CLEO+ 1.0.7+ esta
+  instalado (o mod usa opcodes que so o CLEO+ tem - o CLEO 4 puro nao
+  funciona, e sem o CLEO+ o script nem chega a rodar).
+
+--------------------------------------------------------------------------------
 DESEMPENHO
 --------------------------------------------------------------------------------
 O script percorre o pool de veiculos do jogo (ate ~200 carros) uma vez por

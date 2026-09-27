@@ -91,7 +91,7 @@ o `cleo.xml` do CLEO+ `v1.0.7`, compila o `.sc` e mostra tamanho + SHA-256 do
 `.cs` gerado. O `.cs` que está no repositório:
 
 ```
-3360 bytes   SHA-256 204fb0b3f44331439aa625b2950cff18ccebbf6ec4ed38aaf7ecfa4a1dd379f9
+3571 bytes   SHA-256 9b823354db82e98ab0da9d5e70467b581c8d9fff8f2357fe81ec3b04169d02de
 ```
 
 ## 5. As cinco armadilhas do gta3script que aparecem neste source
@@ -112,27 +112,61 @@ o `cleo.xml` do CLEO+ `v1.0.7`, compila o `.sc` e mostra tamanho + SHA-256 do
    ```
 
 2. **32 slots de variável local, e o preço não é igual.** `LVAR_INT` e
-   `LVAR_FLOAT` custam 1 slot; `LVAR_TEXT_LABEL16` (8 bytes) custa **4**; e
-   `LVAR_TEXT_LABEL` (16 bytes) custa **2**. Não existe escopo por label: um
+   `LVAR_FLOAT` custam 1 slot; `LVAR_TEXT_LABEL` (8 bytes) custa **2**; e
+   `LVAR_TEXT_LABEL16` (16 bytes) custa **4**. Não existe escopo por label: um
    `GOSUB` não abre um conjunto novo de variáveis, então tudo conta junto. É
    por isso que o `.ini` aparece como literal nos comandos de leitura e que o
    script reaproveita `iValue`/`iNext` em trechos comentados.
 
-3. **String literal em text label só na variante de 8 bytes.**
-   `LVAR_TEXT_LABEL16 txt` aceita `txt = "CLEO\algo.ini"`, mas
-   `LVAR_TEXT_LABEL txt` (16 bytes) **não** — e é justamente a de 16 bytes que
-   o `GET_NAME_OF_VEHICLE_MODEL` exige na saída. Erro:
-   `variable type does not match argument type`.
+3. **Text label é curto demais para qualquer caminho de arquivo.**
+   `LVAR_TEXT_LABEL` segura **7 caracteres** e `LVAR_TEXT_LABEL16` segura **15**
+   (o último byte de cada um é o terminador nulo) — é por isso que eles
+   custam 2 e 4 slots. Um caminho de som ("CLEO\BrakePadSound\brakepad.wav")
+   tem 31, então **nenhum** dos dois serve: o caminho era truncado e o
+   `DOES_FILE_EXIST` respondia não mesmo com o arquivo no lugar certo
+   (foi exatamente o bug da primeira build publicada).
 
-4. **Argumento string quer `$` na frente da variável.** `LOAD_3D_AUDIO_STREAM
-   txtSound` é lido pelo compilador como *referência a text label* (e ainda
-   dispara o warning *"text label collides with some variable name"*);
-   `LOAD_3D_AUDIO_STREAM $txtSound` é lido como *variável* — que é o que a gente
-   quer. Parâmetro de **saída** nunca leva `$`.
+   A forma certa é um **buffer na área de dados**, com um `LVAR_INT` de ponteiro:
+
+   ```
+   // na area de dados, depois do SCRIPT_END (128 bytes zerados):
+   txtSoundBuffer:
+   DUMP
+   00 00 ... (128 x 00)
+   ENDDUMP
+
+   // no script:
+   GET_LABEL_POINTER txtSoundBuffer (pBuffer)
+   READ_STRING_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "SoundFile" pBuffer
+   IF NOT DOES_FILE_EXIST $pBuffer
+       ...
+   ENDIF
+   ...
+   LOAD_3D_AUDIO_STREAM $pBuffer (hStream)
+   ```
+
+   São 127 caracteres de capacidade por **1 slot só** (o buffer vive nos dados
+   do script, não nas variáveis locais). E repare que o out param de
+   `READ_STRING_FROM_INI_FILE` aqui é o **ponteiro** (`pBuffer`), não a
+   variável de texto.
+
+4. **Argumento string quer `$` na frente da variável** — e isso é literal, não
+   convenção. Sem o `$`, o identificador vira uma *text label* com o **nome da
+   variável** como conteúdo (o IR2 mostra `DOES_FILE_EXIST "TXT16"` e o
+   compilador avisa *"text label collides with some variable name"*; foi assim
+   que `TAMANHO_DA_CAMISA` apareceu na tela na vez em que o `$` faltava).
+   Com `$`:
+   * variável de texto → os 7/15 bytes do slot viram o endereço da string;
+   * `LVAR_INT` com um `GET_LABEL_POINTER` → o valor da variável **é** o
+     endereço do buffer, e o opcode lê a string de lá.
+
+   Parâmetro de **saída** nunca leva `$` — e `READ_STRING_FROM_INI_FILE` com
+   text label na saída é justamente o caso quebrado do item 3.
 
 5. **`NOP` logo depois do `SCRIPT_START`.** Sem ele o script começa com uma
    referência a label no offset zero e o compilador aborta com
    `compiled script references a label at the zero offset`.
+
 
 Extras que só aparecem aqui: conversão int↔float é com
 `CSET_LVAR_INT_TO_LVAR_FLOAT` / `CSET_LVAR_FLOAT_TO_LVAR_INT` (misturar `int`
