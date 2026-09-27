@@ -211,10 +211,11 @@ na 1.0.7 (a 1.2.0 virou `0/1`).
 
 ## 6. O modelo de tempo (o que dá para testar sem o jogo)
 
-A parte que **não** é opcode puro é o modelo de pressão/cooldown do
-`UpdateCar`, e é justamente onde mora a diferença entre "um som por aperto" e
-metralhadeira. Ele está transcrito linha por linha em
-[`tools/test_model.py`](tools/test_model.py), que roda 72 verificações sem
+A parte que **não** é opcode puro é o modelo de desaceleração e o ciclo de
+vida do som (`KeepSound`/`AdjustSound`/`StopSound`), e é justamente onde mora a
+diferença entre um chiado que acompanha o freio e um chiado que fica tocando no
+vazio. Está transcrito linha por linha em
+[`tools/test_model.py`](tools/test_model.py), que roda **117 verificações** sem
 precisar do jogo:
 
 ```bash
@@ -224,24 +225,27 @@ python3 tools/test_model.py
 Cobre: **carro parado não canta** (com o pé no freio, mesmo com
 `BrakeThreshold = 0`); o chiado chegando na hora em que o carro freia de
 verdade; `BrakeThreshold`; `BrakeForce` (a queda em m/s² que separa freada de
-encostada no freio); a repetição enquanto a frenagem está forte com
-`Cooldown = 1500`; um som por aperto com `Cooldown = 0` em 30/60/144/240 FPS;
-a escala de volume (pedal com piso de 50%, velocidade com a conversão 3.6,
-volume do menu, teto em 1,0); a independência de FPS (mesma contagem e mesmo
-volume do primeiro som de 25 a 240 FPS); o pedal da IA pisando sem virar
-metralhadeira; e a **conferência do source** (ordem dos operandos do `CSET`, o
-`$` do ponteiro do buffer, a contagem de slots ≤ 32, a desaceleração em
-m/s², e a promessa de "o `.ini` é lido só no começo"). Se você mexer no
-`UpdateCar`, nos defaults do `.ini` ou nas conversões, rode isso antes de
-brigar com o jogo.
+encostada no freio); **o caso relatado na v2.8** (frear até o carro parar e soltar
+o freio tem de encerrar o som em ~`Fade`); o *fade* em segundos, idêntico de 25
+a 240 FPS; o término natural do arquivo e o rearme (6,165 s recomeçando sozinho
+numa frenagem de 12 s); **ausência de sobreposição** com áudio de 1,2 s e de
+6,165 s; o teto de 6 sons com 10 carros no pool; a escala de volume (pedal com
+piso de 50%, velocidade com a conversão 3.6, volume do menu, teto em 1,0); o
+pedal da IA pisando sem virar metralhadeira; e a **conferência do source**
+(ordem dos operandos do `CSET`, o `$` do ponteiro do buffer, a contagem de slots
+≤ 32, a desaceleração em m/s², o `Fade` em vez do `Cooldown`, e a promessa de
+"o `.ini` é lido só no começo"). Se você mexer no `UpdateCar`, no `AdjustSound`,
+nos defaults do `.ini` ou nas conversões, rode isso antes de brigar com o jogo.
 
 ## 7. O som (`brakepad.wav`)
 
 O `.wav` que vem no mod é **sintetizado** por
 [`tools/make_sound.py`](tools/make_sound.py) (só biblioteca padrão do Python),
 porque o som do mod original é dos autores dele e não é nosso para
-redistribuir. Para usar o som do mod v2.5.1, copie o `.wav` dele para
-`CLEO\BrakePadSound\brakepad.wav` ou aponte o `.ini` para o caminho dele:
+redistribuir. Para usar o som do mod v2.5.1, copie o `.wav` dele (ou o `.mp3`) para
+`CLEO\BrakePadSound\brakepad.wav` ou aponte o `.ini` para o caminho dele. O
+script não depende da duração do arquivo: os ~6 s do mod original funcionam
+igual ao placeholder de 1,2 s deste pacote.
 
 ```bash
 python3 tools/make_sound.py                 # recria o wav padrão

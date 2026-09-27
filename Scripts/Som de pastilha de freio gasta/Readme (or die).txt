@@ -1,5 +1,5 @@
 ================================================================================
-        WORN BRAKE PAD SOUND - v2.8 (CLEO+, NPC edition)
+        WORN BRAKE PAD SOUND - v2.9 (CLEO+, NPC edition)
 ================================================================================
 
 Rewritten from scratch in GTA3script out of the "Som de pastilha de freio
@@ -22,6 +22,34 @@ has no special case anymore - it goes through the exact same path as everyone
 else, so whatever works for the NPCs works for you (and vice versa).
 
 --------------------------------------------------------------------------------
+THE SOUND HAS AN END: IT IS BORN AND DIES WITH THE BRAKING
+--------------------------------------------------------------------------------
+This is the main fix of this version, and the answer to the problem reported on
+v2.8: after braking to a full stop and releasing the brake, the squeal kept
+playing for a few seconds.
+
+The reason was simple: the script fired the sound and never touched it again. It
+threw the file at the car and forgot the handle, so the audio played to the end -
+and the original mod's sound is about 6 seconds long. With the 1.2 s placeholder
+you could not even notice.
+
+Now the sound BELONGS to the car:
+
+  - it is born when the braking starts (real deceleration + foot on the brake);
+  - the volume FOLLOWS the braking, frame by frame: harder braking, louder
+    squeal, just like in real life;
+  - when the braking ends - you released the brake, the car stopped braking or
+    the car stopped - the volume goes to zero over "Fade" seconds and the sound
+    is actually STOPPED AND REMOVED, not just turned down;
+  - same thing when the car leaves the camera radius or switches the engine off:
+    the squeal does not stay behind, playing in the world on its own.
+
+And the cycle works with ANY file: a 1 s squeal or a 10 s one, the script does
+not depend on the length. If the braking lasts longer than the file, the script
+starts the squeal again - always ONE sound per car, never two overlapping
+copies.
+
+--------------------------------------------------------------------------------
 WHAT CHANGED FROM v2.5.1
 --------------------------------------------------------------------------------
 1. NPCs. v2.5.1 only played the sound for the player's car. Here every vehicle
@@ -38,9 +66,14 @@ WHAT CHANGED FROM v2.5.1
    and it follows the game's sound-effects volume for every sound (the 2019
    fix, which used to only apply to the player).
 
-4. Cooldown. With Cooldown = 0 you get one squeal per brake press, exactly like
-   v2.5.1. With Cooldown = 1500 (the default) the squeal repeats while the brake
-   is held, which is what a real worn pad does.
+4. The sound really ends. v2.5.1 (and v2.8) fired the sound and walked away:
+   the file played to the end, and with a ~6 s sound the squeal went on after
+   you released the brake. Now the audio stream handle is stored on the car and,
+   at the end of the braking, the sound fades out (Fade), is stopped and is
+   REMOVED. One sound per car, no overlap. Whether the squeal repeats while you
+   hold the brake is now decided by the LENGTH OF YOUR AUDIO FILE (the script
+   restarts it when the file ends), so there is no interval to tune anymore -
+   and no way to stack copies of the same squeal.
 
 5. Everything is frame-rate independent (pressure and cooldown are computed in
    seconds/milliseconds, not "per frame").
@@ -129,12 +162,12 @@ CONFIGURATION (CLEO\BrakePadSound.ini)
       Reference speed (km/h). The volume rises with the speed up to 100%
       at RefSpeed (and never drops below 25%).
 
-  Cooldown = 1500
-      Milliseconds between two squeals from the same car. 0 = one per brake
-      press (same as v2.5.1): the car latches after squealing and only sings
-      again once the brake is really released. 1500 = repeats while the
-      braking is strong, like a real pad (each squeal lasts 1.2 s, so they do
-      not overlap).
+  Fade = 0.2
+      How many SECONDS the sound takes to disappear when the braking ends (foot
+      off the brake, car no longer braking, car stopped). 0.2 = a fifth of a
+      second: gone before you notice. 0 = hard cut (only if your file clicks at
+      the end). 0.5 = slower, if your file has a tail. The same time applies to
+      the attack: the squeal fades in instead of popping.
 
   Debug = 0
       1 = prints each new car's value on screen.
@@ -174,30 +207,40 @@ Nothing happens at all
 I hear no sound at all (neither mine nor the NPCs')
 
   v2.6 had a bug that zeroed the brake pressure, so it stayed silent in every
-  situation. v2.7 ships that fixed - but if you are still running v2.6, follow
+  situation. v2.9 ships that fixed - but if you are still running v2.6, follow
   this order (an old .cs keeps running until GTA is closed):
 
   1. Close the game, replace BrakePadSound.cs, start the game again. Replacing
      the .cs while the game is open changes nothing: the old script keeps
      running.
 
-  2. On startup the game now prints "Som de pastilha v2.7 - <path> (until ...,
+  2. On startup the game now prints "Som de pastilha v2.9 - <path> (until ...,
      radius ... m)". Check that the path shown is your sound file.
 
-  3. Test WHILE MOVING: get up to street speed and brake. v2.7 is a worn pad,
+  3. Test WHILE MOVING: get up to street speed and brake. v2.9 is a worn pad,
      so it sings with the car moving. A stopped car is silent by design in
-     v2.8 (it does not decelerate) - to hear it right away, roll a little and
+     v2.9 (it does not decelerate) - to hear it right away, roll a little and
      brake hard, or listen to a car on the street (the sound is 3D).
 
   4. If it still doesn't sound, set Debug = 1: the script prints the value of
      every new car that goes through it. If no car shows up, the script is not
      running at all (go back to step 1).
 
+The sound keeps playing after I release the brake
+
+  If v2.8 does that, it is still installed: its script fired the audio and never
+  touched it again, so the file played to the end (the original mod's sound is
+  ~6 s) long after the braking was over. v2.9 stores the sound handle on the car
+  and stops + removes it at the end of the braking. Close GTA, replace
+  BrakePadSound.cs and start the game again (the old .cs only leaves memory
+  when GTA closes). If you want it even more abrupt, set Fade = 0 in the .ini.
+
 It squeals with the car STOPPED / won't stop squealing
 
-  If v2.7 squeals while stopped, that version is still installed: close the
-  game and replace BrakePadSound.cs with v2.8 (the old file only leaves memory
-  when GTA closes). v2.8 does not squeal at a standstill - a stopped car does
+  If an old version squeals while stopped, that version is still installed:
+  close the game and replace BrakePadSound.cs with v2.9 (the old file only
+  leaves memory when GTA closes). v2.9 does not squeal at a standstill - a
+  stopped car does
   not decelerate. If you WANT to hear it without moving, it isn't a config
   thing: v2.8 keys off deceleration, so a stopped car is silent by definition.
   To hear it right away, roll a little and brake hard - or listen to a car on
@@ -229,9 +272,10 @@ The sound can be regenerated with:
 
      python3 tools/make_sound.py
 
-And the timing model (pressure, trigger, cooldown, volume) can be checked
-without the game - 81 checks, including "one squeal per press" at
-30/60/144/240 FPS:
+And the timing model (deceleration, trigger, fade, sound end, volume) can be
+checked without the game - 117 checks, including the case reported on v2.8
+(braked to a stop, the sound must die), no overlap with the 6.165 s audio at
+30/60/144/240 FPS and the CSET operand order (the bug that left the mod mute):
 
      python3 tools/test_model.py
 
@@ -245,6 +289,6 @@ NPC approach (CLEO+ defaults, script events, audio streams): Junior_Djjr, in
 CLEO+ opcodes used: GET_CAR_VALUE, GET_CAR_PEDALS, GET_VEHICLE_SUBCLASS,
    GET_ANY_CAR_NO_SAVE_RECURSIVE, EXTENDED_CAR_VARS, SET_SCRIPT_EVENT_CAR_CREATE,
    GET_AUDIO_SFX_VOLUME, audio streams.
-Sound in this v2.8: synthesized by tools/make_sound.py (the original mod's sound
+Sound in this package: synthesized by tools/make_sound.py (the original mod's sound
    is not redistributed here).
 ================================================================================

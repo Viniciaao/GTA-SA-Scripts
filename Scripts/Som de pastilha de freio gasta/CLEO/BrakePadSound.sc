@@ -1,6 +1,6 @@
 /*
     ============================================================================
-    SOM DE PASTILHA DE FREIO GASTA - v2.8 (CLEO+, edicao NPCs)
+    SOM DE PASTILHA DE FREIO GASTA - v2.9 (CLEO+, edicao NPCs)
     ----------------------------------------------------------------------------
     Reescrito do zero em gta3script (gta3sc) a partir do mod original
     "Som de pastilha de freio gasta" v2.5.1 (Amilton, Fabio, Junior_Djjr),
@@ -12,30 +12,65 @@
     ============================================================================
     Quando alguem - VOCE ou um NPC - freia de verdade um carro velho, aparece
     aquele chiado agudo e horrivel de pastilha gasta. O som e' 3D e sai do
-    carro, entao da para ouvir o chiado do carro ao lado, de tras, atravessando
-    a rua.
+    carro, entao da para ouvir o chiado do carro ao lado, de tras, atraves da
+    rua.
 
-    O QUE O MOD FAZ - E O QUE ELE NAO FAZ
+    O SOM TEM FIM: NASCE E MORRE COM A FRENAGEM
     ============================================================================
-    O gatilho e' a DESACELERACAO do carro, exatamente como no mod original: o
-    script compara a velocidade deste frame com a do frame anterior e so toca
-    quando a queda passa de um limite (BrakeForce). E' por isso que a v2.8
-    "funciona naturalmente":
+    Este e' o ponto que mais mudou na v2.9, e o que o jogador pediu depois de
+    testar: o som nao pode ser um evento solto, ele tem inicio, meio e FIM - e
+    esse fim e' exatamente "a frenagem acabou".
 
-      - freando a 80 km/h, o chiado aparece na hora, como na vida real;
-      - com o carro PARADO e o pe no freio, nao acontece NADA. Um carro parado
-        nao desacelera - ele nao tem por onde cair. E' a garantia de que a
-        cantiga so aparece quando o carro esta mesmo freando, e nao quando o
-        pe fica no freio no sinal;
-      - uma freada de leve quase nao canta (a queda de velocidade e' pequena);
+    A v2.8 (como a v2.5.1 antes dela) disparava o som e nunca mais mexia nele:
+    jogava o stream no carro e esquecia o handle. Com um som curto (o
+    placeholder de 1,2 s) isso passava batido. Com um som de verdade - o
+    brakepad de ~6 s que o jogador usa - o chiado continuava soando por 6 s
+    DEPOIS de soltar o freio e parar o carro. E' este o bug reportado.
+
+    A v2.9 guarda o handle do stream de cada carro (var. estendida 3) e o
+    desliga de verdade quando a frenagem termina:
+
+      - o som toca SO ENQUANTO a frenagem estiver valendo;
+      - quando o pe sai do freio, ou quando a frenagem alivia (a queda de
+        velocidade passa a ser menor que BrakeForce), ou quando o carro para,
+        o volume vai a zero em ~Fade segundos e o stream e' REMOVIDO de
+        verdade (REMOVE_AUDIO_STREAM) - ele nao fica soando no vazio;
+      - a proxima frenagem comeca um som novo, do zero.
+
+    Isso vale para o carro do jogador e para o de TODOS os NPCs, porque o
+    caminho e' o mesmo.
+
+    TRES COISAS QUE A v2.9 FAZ E A v2.8 NAO FAZIA
+    ============================================================================
+    1. Um som so por carro, nao um por disparo. A v2.8 criava um stream novo
+       toda vez que a frenagem passava do gatilho: com um som de 6 s e um
+       intervalo de 1,5 s entre disparos, isso significava 4 copias do mesmo
+       chiado sobrepostas no mesmo carro. A v2.9 cria no maximo UM stream por
+       carro e so cria outro depois de ter desligado e removido o anterior.
+       Por isso nao existe mais sobreposicao, por mais longo que o som seja.
+
+    2. O volume ACOMPANHA a frenagem, frame a frame. Quanto mais forte a
+       frenagem, mais alto o chiado; quando a frenagem acaba, o som desce ate
+       zero sozinho. A pastilha canta DURANTE a frenagem, como na vida real.
+
+    3. O som nunca gruda. Todo carro que esta com som tocando continua sendo
+       atualizado mesmo se sair do raio da camera ou desligar o motor: nesses
+       casos o som e' desvanecido e removido, em vez de ficar tocando sozinho
+       num carro que ja nao esta mais na cena.
+
+    O GATILHO
+    ============================================================================
+    A DESACELERACAO do carro, exatamente como no mod original: o script compara
+    a velocidade deste frame com a do frame anterior e so comeca o chiado
+    quando a queda passa de BrakeForce (medida em m/s2, o popular "g"). E' por
+    isso que o mod soa naturalmente:
+
+      - freando a 80 km/h, o chiado aparece na hora;
+      - com o carro PARADO, nao comeca nada (carro parado nao desacelera);
+      - uma freada de leve nao chega no gatilho;
       - uma batida forte canta alto e longo;
-      - accelerate e depois freie: a primeira Frenagem e' a mais forte e e' a
-        que canta.
-
-    Diferente da v2.7 (que usava uma "pressao" que ia acumulando enquanto o pe
-    ficava apertado, e por isso cantava no carro parado e demorava a calar), a
-    v2.8 mede a desaceleracao de verdade. Isso e' a mesma ideia do mod original
-    e nao depende de tempo acumulado.
+      - o chiado NAO precisa de uma "pressao" que acumule: ele mede a frenagem
+        de cada frame, entao some no mesmo instante em que ela acaba.
 
     O QUE MUDOU EM RELACAO AO v2.5.1
     ============================================================================
@@ -52,32 +87,35 @@
        efeitos do menu (0xB5FCCC) em todos os sons, inclusive os dos NPCs.
     4. Sons 3D de verdade: a pastilha e' do carro que esta freando, com a
        atenuacao por distancia do proprio jogo.
-    5. Cooldown: com Cooldown = 0 o chiado acontece UMA vez a cada aperto no
-       freio (comportamento da v2.5.1). Com Cooldown = 1500 (padrao) ele se
-       repete enquanto a frenagem estiver forte, que e' como funciona na vida
-       real (a pastilha canta durante a frenagem).
-    6. Independente de FPS: a desaceleracao e' medida em m/s2 (metros por
-       segundo ao quadrado), e nao "queda por frame". Um mesmo freio e'
-       reconhecido igual a 30, 60, 144 ou 240 FPS.
-    7. Pouco I/O: o .ini e' lido UMA vez, no comeco. O som so e' disparado para
+    5. Fim de som de verdade: o stream e' desvanecido e removido no fim da
+       frenagem (Fade, no .ini).
+    6. Sem sobreposicao e sem acumulo: no maximo um som por carro, e um teto
+       de 6 sons ao mesmo tempo no mundo inteiro.
+    7. Independente de FPS: o desvanecimento e' calculado em segundos e
+       milissegundos (GET_GAME_TIMER), e nao "por frame".
+    8. Pouco I/O: o .ini e' lido UMA vez, no comeco. O som so e' disparado para
        carros dentro do raio (Radius), com motor ligado, com valor dentro do
        limite e com o pedal mesmo apertado.
 
     DESEMPENHO (o ponto que mais pesa quando o mod roda no mundo inteiro)
     ============================================================================
     O pool de veiculos do SA (ate ~200 slots) e' percorrido uma vez por frame,
-    mas para cada carro o unico opcode "barato" e' o GET_EXTENDED_CAR_VAR, que
+    mas para cada carro o unico opcode barato e' o GET_EXTENDED_CAR_VAR, que
     so responde para os carros QUE ESTE SCRIPT JA AVALIOU (var 1 = 0 ainda nao
-    avaliado, 1 = registrado e armado, 2 = descartado, 3 = registro e travado
-    neste aperto). Carro caro, aviao, barco e moto que nao estao liberados sao
+    avaliado, 1 = registrado e armado, 2 = descartado, 3 = registrado e com
+    som tocando). Carro caro, aviao, barco e moto que nao estao liberados sao
     filtrados ali mesmo, sem ler velocidade, sem ler posicao e sem tocar som. A
     avaliacao (tipo de veiculo + valor) acontece uma unica vez por carro; o
     registro acontece uma vez por carro, no evento de criacao do CLEO+ (SET_
     SCRIPT_EVENT_CAR_CREATE). O .ini nao e' lido no laco.
 
-    A velocidade de cada carro (necessaria para a desaceleracao) mora na
-    variavel estendida 2 de cada veiculo - o proprio carro guarda a
-    velocidade do frame anterior, entao nao ha tabela para o script manter.
+    Detalhe importante do contador de sons: iSounds e' REcontado a cada frame e
+    incrementado so para os carros que estao com som tocando. Isso e' proposital
+    - se um carro com som for destruido, ele some do laco e para de contar,
+    entao o contador se conserta sozinho e o mod nao "trava" depois de algumas
+    destruicoes de veiculo no meio da cidade. (O stream daquele carro continua
+    tocando sozinho ate acabar, porque ninguem mais tem o handle dele; como o
+    som nao e' loopado, ele simplesmente termina.)
 
     REQUISITOS
     ============================================================================
@@ -94,11 +132,10 @@
     (16 bytes, 15 caracteres) custa 4. Nao existe escopo por label, entao GOSUB
     nao abre um conjunto novo de variaveis. Por isso o codigo reaproveita
     algumas variaveis em trechos onde o valor delas ja morreu - por exemplo
-    iValue, que e' o dt no comeco do frame e o "valor do carro" dentro da
-    avaliacao, e iNext, que so vive dentro do UpdateCar e tambem guarda a
-    leitura do modelo no Debug. Os pontos de reuso sempre estao comentados.
-    Este script usa 31 dos 32 slots: qualquer variavel nova exige apagar
-    outra.
+    iValue, que e' o dt no comeco do frame, o "valor do carro" dentro da
+    avaliacao e o rascunho dentro do MeasureBrake; e f, que e' o gas do
+    pedal em um trecho e o volume em outro. Os pontos de reuso sempre estao
+    comentados. Este script usa 31 dos 32 slots.
 
     E o caminho do arquivo de som nao cabe em text label nenhum: 7 ou 15
     caracteres nao armazenam um caminho de 30 e poucos. Ele vai para um buffer
@@ -122,7 +159,7 @@
         DESTINO vem primeiro. Como a v2.6/v2.7 escrevia no sentido inverso, o
         dt virava 0.0, a pressao nunca passava do gatilho e o mod nao tocava
         SOM NENHUM. Foi o quarto bug deste mod, so visivel no log de execucao
-        (SCRLog) do jogo. Ver a secao de conversao no UpdateCar.
+        (SCRLog) do jogo. Ver as tres conversoes no MeasureBrake/AdjustSound.
 
     A4. Recarregar o jogo depois de trocar a .cs. O script ja carregado em
         memoria continua o antigo ate o GTA fechar.
@@ -136,10 +173,10 @@ NOP
 
 // ------------------------------------------------------------------ variaveis
 LVAR_INT hVeh hNewCar hStream pBuffer
-LVAR_INT iSearch iReg iPrevVel iNext iNow iPrevTime iSounds
-LVAR_INT iValue iMinValue iMaxValue iCooldown iVehicles iDebug
-LVAR_FLOAT x y z fVel fDecel fBrake f fStep fVol
-LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
+LVAR_INT iSearch iReg iPrevVel iSounds iNow iPrevTime iValue
+LVAR_INT iMinValue iMaxValue iVehicles iDebug
+LVAR_FLOAT x y z fVel fDecel fBrake f fStep fVol fIncr
+LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed fFade
 
     // ============================================================ inicializacao
     WAIT 0
@@ -228,7 +265,7 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
         fRadius = 70.0
     ENDIF
 
-    // ---- como o pedal vira chiado ----
+    // ---- como a frenagem vira chiado ----
     // BrakeThreshold: pedal minimo (0 a 1) para contar como freada. E' a
     // trava contra falso positivo - so conta frenagem com pe mesmo no freio.
     IF NOT READ_FLOAT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "BrakeThreshold" fBrakeMin
@@ -236,12 +273,29 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
         fBrakeMin = 0.15
     ENDIF
     // BrakeForce: queda minima de velocidade (em m/s2, ou seja, "g") para o
-    // chiado contar. Freada de verdade passa facil desse numero; um
-    // encostinho no freio nao chega. O mod original usava um numero fixo
-    // assim tambem - aqui ele virou ajuste.
+    // chiado comecar E continuar. Freada de verdade passa facil; encostinho
+    // no freio nao chega.
     IF NOT READ_FLOAT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "BrakeForce" fForce
         WRITE_FLOAT_TO_INI_FILE 2.5 "CLEO\BrakePadSound.ini" "Config" "BrakeForce"
         fForce = 2.5
+    ENDIF
+    // Fade: em quantos segundos o som desaparece quando a frenagem acaba.
+    // 0.2 = some em um quinto de segundo. 0 = corte seco (use so se o seu
+    // arquivo estalar no fim).
+    IF NOT READ_FLOAT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "Fade" fFade
+        WRITE_FLOAT_TO_INI_FILE 0.2 "CLEO\BrakePadSound.ini" "Config" "Fade"
+        fFade = 0.2
+    ENDIF
+    IF fFade < 0.0
+        fFade = 0.0
+    ENDIF
+    // vira "volume por segundo": com 0.2 s de fade, o volume cai 5.0 por s.
+    IF fFade > 0.0
+        f = 1.0
+        f /= fFade
+        fFade = f
+    ELSE
+        fFade = 1000.0          // Fade = 0: o primeiro passo ja zera
     ENDIF
 
     // ---- velocidade de referencia (so para o volume) ----
@@ -249,17 +303,10 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
         WRITE_FLOAT_TO_INI_FILE 110.0 "CLEO\BrakePadSound.ini" "Config" "RefSpeed"
         fRefSpeed = 110.0
     ENDIF
-    IF NOT READ_INT_FROM_INI_FILE "CLEO\BrakePadSound.ini" "Config" "Cooldown" iCooldown
-        WRITE_INT_TO_INI_FILE 1500 "CLEO\BrakePadSound.ini" "Config" "Cooldown"
-        iCooldown = 1500
-    ENDIF
 
     // ---- protecoes contra .ini editado na mao ----
     IF iMaxValue < iMinValue
         iMaxValue = iMinValue
-    ENDIF
-    IF iCooldown < 0
-        iCooldown = 0
     ENDIF
     IF fForce < 0.0
         fForce = 0.0
@@ -274,7 +321,7 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
     CLAMP_FLOAT fBrakeMin 0.0 0.95 (fBrakeMin)
 
     // Os eventos de criacao rodam no MEIO deste laco, entao o handler nao pode
-    // encostar em hVeh/iSearch/iReg/iPress/...: ele usa so hNewCar.
+    // encostar em hVeh/iSearch/iReg/...: ele usa so hNewCar.
     SET_SCRIPT_EVENT_CAR_CREATE ON OnCarCreate hNewCar
 
     // Carros que ja estavam no pool quando o script carregou nao passam pelo
@@ -288,7 +335,7 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
     // A mensagem mostra o caminho que o script REALMENTE esta usando. Se o
     // jogo mostra outra coisa aqui, o problema esta no BrakePadSound.ini (ou no
     // ModLoader, que reescreve o .ini na pasta CLEO do mod).
-    PRINT_FORMATTED_NOW "Som de pastilha v2.8 - %s (ate %d, raio %f m)" 5000 $pBuffer iMaxValue fRadius
+    PRINT_FORMATTED_NOW "Som de pastilha v2.9 - %s (ate %d, raio %f m)" 5000 $pBuffer iMaxValue fRadius
 
     // =================================================================== laco
     WHILE TRUE
@@ -308,11 +355,17 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
             iValue = 200
         ENDIF
         // CSET tem os NOMES trocados (0093 = int -> float), destino primeiro.
-        // fStep = dt em SEGUNDOS (a desaceleracao e' medida por segundo).
+        // fStep = dt em SEGUNDOS (o desvanecimento e' medido por segundo, e
+        // nao por frame - e' por isso que o fade dura o mesmo em 30 ou 240 FPS).
         CSET_LVAR_FLOAT_TO_LVAR_INT fStep iValue
         fStep *= 0.001
 
+        // Contador de sons tocando: recontado do zero a cada frame e
+        // incrementado so para os carros que tem som (var 1 = 3). Se um
+        // desses carros for destruido, ele some do laco e para de contar, e o
+        // teto de 6 sons se refaz sozinho.
         iSounds = 0
+
         iSearch = 0
         WHILE GET_ANY_CAR_NO_SAVE_RECURSIVE iSearch (iSearch hVeh)
             GET_EXTENDED_CAR_VAR hVeh AUTO 1 iReg
@@ -320,14 +373,23 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
                 // primeira vez que este script ve este carro
                 GOSUB EvaluateCar
             ELSE
-                // iReg = 1 = armado, 3 = travado (Cooldown = 0, ja cantou
-                // neste aperto), 2 = descartado. So o 2 sai do laco.
                 IF NOT iReg = 2
-                    IF IS_CAR_ENGINE_ON hVeh
-                        GET_CAR_COORDINATES hVeh x y z
-                        IF LOCATE_CAMERA_DISTANCE_TO_COORDINATES x y z fRadius
-                            GET_CAR_PEDALS hVeh f fBrake     // o gas vai no temporario f
-                            GOSUB UpdateCar
+                    IF iReg = 3
+                        // tem som tocando: este carro NAO passa pelo teste de
+                        // distancia nem de motor. Se ele saiu do raio ou
+                        // desligou o motor, o som e' desvanecido e removido
+                        // aqui - e' o que impede o chiado de ficar tocando
+                        // sozinho depois que o carro sumiu de cena.
+                        iSounds += 1
+                        GOSUB UpdateSounding
+                    ELSE
+                        // armado: so interessa se o carro estiver perto, com
+                        // motor ligado
+                        IF IS_CAR_ENGINE_ON hVeh
+                            GET_CAR_COORDINATES hVeh x y z
+                            IF LOCATE_CAMERA_DISTANCE_TO_COORDINATES x y z fRadius
+                                GOSUB PlaySqueal
+                            ENDIF
                         ENDIF
                     ENDIF
                 ENDIF
@@ -336,7 +398,7 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
     ENDWHILE
 
     // ================================================================== eventos
-    // Veiculo criado no jogo: so reserva as 2 var. estendida. Quem decide se
+    // Veiculo criado no jogo: so reserva as 4 var. estendida. Quem decide se
     // ele pode chiar e' o EvaluateCar, no laco principal (aqui as variaveis de
     // configuracao estao em uso pelo laco).
     OnCarCreate:
@@ -344,10 +406,12 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
         RETURN_SCRIPT_EVENT
 
     InitCar:
-        // 1 = avaliado (1 = pode chiar, 2 = descartado, 3 = travado neste aperto)
+        // 1 = avaliado (1 = armado, 2 = descartado, 3 = com som tocando)
         // 2 = velocidade do frame anterior (em m/s x 1000) - o proprio carro
         //     guarda a velocidade, para o script medir a queda no proximo frame
-        INIT_EXTENDED_CAR_VARS hNewCar AUTO 2
+        // 3 = handle do stream de audio deste carro (0 = sem som tocando)
+        // 4 = volume atual do som (x1000, 0 a 1000) - e' o que o fade move
+        INIT_EXTENDED_CAR_VARS hNewCar AUTO 4
         SET_EXTENDED_CAR_VAR hNewCar AUTO 1 0
         RETURN
 
@@ -364,6 +428,9 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
             IF iReg = VEHICLE_SUBCLASS_AUTOMOBILE
                 GOTO EvalValue
             ENDIF
+            // Sem este GOTO, um aviao/barco "caia" na avaliacao de valor em
+            // vez de ser descartado (e, com MinValue = 0, era aceito).
+            GOTO EvalReject
         ELSE
             IF iReg = VEHICLE_SUBCLASS_PLANE
             OR iReg = VEHICLE_SUBCLASS_FPLANE
@@ -381,10 +448,9 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
         // Debug = 1 mostra o valor de TODO carro que chegou ate aqui, antes dos
         // cortes: e' assim que se descobre o MinValue/MaxValue certo (se o
         // print viesse depois, so apareceria o que ja foi aceito).
-        // iNext so e' usado dentro do UpdateCar, entao serve de rascunho aqui.
+        // iValue ja morreu como valor do carro aqui, entao serve de rascunho.
         IF iDebug = 1
-            GET_CAR_MODEL hVeh (iNext)
-            PRINT_FORMATTED_NOW "modelo %d = %d (corte %d..%d)" 2500 iNext iValue iMinValue iMaxValue
+            PRINT_FORMATTED_NOW "carro %d = %d (corte %d..%d)" 2500 hVeh iValue iMinValue iMaxValue
         ENDIF
 
         IF iValue < iMinValue
@@ -404,13 +470,17 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
         SET_EXTENDED_CAR_VAR hVeh AUTO 1 iReg
         RETURN
 
-    // =================================================================== update
-    // Um carro registrado (iReg = 1), com motor ligado, dentro do raio.
-    // Aqui mora o coracao do mod: a DESACELERACAO, como no mod original.
-    UpdateCar:
-        // ---- velocidade deste frame (m/s) ----
-        GET_CAR_SPEED hVeh fVel
+    // ================================================================== medicao
+    // (o gatilho em si mora no PlaySqueal, que mede a frenagem do carro
+    //  ATUAL - hVeh - e decide se o som nasce, continua ou morre)
 
+    // ================================================================== medicao
+    // Mede a frenagem do carro ATUAL (hVeh) e deixa o resultado em fDecel e
+    // fVel. Chamado pelo PlaySqueal (que e' chamado tanto por um carro que
+    // acabou de dar o gatilho quanto por um que ja tem som) - e' por isso que
+    // fBrake, f e iValue sao tratados como rascunho dentro daqui.
+    MeasureBrake:
+        GET_CAR_SPEED hVeh fVel
         // ---- queda de velocidade desde o frame anterior, em m/s2 ----
         // A velocidade anterior mora na var. estendida 2 do proprio carro.
         // (0093 = int -> float: destino primeiro, ver a armadilha A3.)
@@ -422,78 +492,224 @@ LVAR_FLOAT fBrakeMin fForce fVolume fRadius fRefSpeed
         IF fStep > 0.0
             fDecel /= fStep             // ...por segundo = m/s2
         ENDIF
-
-        // guarda a velocidade de HOJE, para o proximo frame calcular a queda
+        // guarda a velocidade de HOJE, para o proximo frame medir a queda
         // (0092 = float -> int: destino primeiro)
         f = fVel
         f *= 1000.0
         CSET_LVAR_INT_TO_LVAR_FLOAT iPrevVel f
         SET_EXTENDED_CAR_VAR hVeh AUTO 2 iPrevVel
+        RETURN
 
-        // ---- sem pedal: o chiado para e o aperto conta como novo ----
-        // (so importa quando Cooldown = 0, para dar UM som por aperto)
-        IF fBrake < fBrakeMin
-            iReg = 1
+    // ===================================================================== som
+    // Chamado do laco principal para TODO carro que tem som tocando (var 1 = 3),
+    // incluindo os que ja sairam do raio: eles precisam de um chance de ter o
+    // som desligado, senao o chiado ficaria tocando no mundo sem carro nenhum.
+    UpdateSounding:
+        IF IS_CAR_ENGINE_ON hVeh
+            GET_CAR_COORDINATES hVeh x y z
+            IF LOCATE_CAMERA_DISTANCE_TO_COORDINATES x y z fRadius
+                GOSUB PlaySqueal
+                RETURN
+            ENDIF
+        ENDIF
+        GOSUB StopSound
+        RETURN
+
+    // Todo o ciclo de vida do som passa por aqui. O som do carro ATUAL (hVeh)
+    // e' uma "maquina" de tres estados, guardada nas var. estendidas do carro:
+    //
+    //   var 3 = 0 (sem som)  ->  criado em CreateSound
+    //   var 3 = handle       ->  volume em AdjustSound
+    //   var 3 = 0 de novo    ->  pronto para a proxima frenagem
+    //
+    // PlaySqueal e' o unico ponto de entrada do laco principal (chamado tanto
+    // por um carro armado quanto por um carro que ja tem som). Ele descobre o
+    // estado e chama a rotina certa.
+    PlaySqueal:
+        // ---- o carro ja tem som? entao o cuidado agora e' MANTER e TERMINAR
+        GET_EXTENDED_CAR_VAR hVeh AUTO 3 hStream
+        IF NOT hStream = 0
+            GOSUB KeepSound
             RETURN
         ENDIF
-
-        // ---- a frenagem foi forte o bastante? ----
-        // Um carro PARADO nao desacelera, entao com o pe no freio e o carro
-        // parado nao acontece nada. E' a garantia de soar natural.
-        IF iReg = 1
-            IF fDecel > fForce
-                IF iNow >= iNext          // passou o cooldown?
-                    GOSUB PlaySqueal
-                    iNext = iNow
-                    iNext += iCooldown
-                    IF iCooldown = 0
-                        // travado ate soltar o freio de verdade
-                        iReg = 3
-                        SET_EXTENDED_CAR_VAR hVeh AUTO 1 3
+        // ---- sem som: o gatilho e' a DESACELERACAO, como no mod original ----
+        // (a leitura do pedal vem aqui, e nao no laco principal, porque o
+        //  gas e' guardado no temporario f - ver a nota de reuso no topo)
+        GET_CAR_PEDALS hVeh f fBrake
+        GOSUB MeasureBrake
+        IF NOT fVel < 0.5            // 0.5 m/s = 1,8 km/h: abaixo disso o carro
+                                    // esta parado e nao existe frenagem
+            IF fBrake > fBrakeMin    // pe no freio?
+                IF fDecel > fForce    // queda de velocidade forte o bastante?
+                    IF fDecel < 25.0  // teto de seguranca (ver MeasureBrake)
+                        GOSUB CreateSound
                     ENDIF
                 ENDIF
             ENDIF
         ENDIF
         RETURN
 
-    // ====================================================================== som
-    PlaySqueal:
-        // quanto mais rapido o carro esta, mais alto o chiado (0.25 ate 1.0)
-        // Atencao: o GET_CAR_SPEED devolve em "~m/s" e o RefSpeed do .ini esta
-        // em km/h - o 3.6 converte um no outro (mesma conversao do mod original).
-        f = fVel
-        f *= 3.6                       // m/s -> km/h
-        f /= fRefSpeed
-        IF f < 0.25
-            f = 0.25
+    // =================================================================== volume
+    // Quanto de volume a frenagem DESTE frame merece. Deixa o resultado em f,
+    // que e' o "alvo" do AdjustSound. f = 0 significa "a frenagem acabou:
+    // o som tem de morrer".
+    BrakeVolume:
+        f = 0.0
+        IF fVel < 0.5
+            RETURN                      // carro parado: pastilha nao canta
         ENDIF
+        IF fBrake < fBrakeMin
+            RETURN                      // pe fora do freio
+        ENDIF
+        IF fDecel < fForce
+            RETURN                      // freada leve demais
+        ENDIF
+        IF fDecel > 25.0
+            RETURN                      // pico falso (velocidade antiga)
+        ENDIF
+        // ---- quanto mais forte a frenagem, mais alto ----
+        // A escala e' fDecel / (2 x BrakeForce): no proprio limite do gatilho
+        // o som ja aparece a ~50% e numa batida forte (2x o limite, ~0,5 g)
+        // chega ao maximo. Como o BrakeForce e' o mesmo numero que dispara o
+        // som, mexer nele muda o gatilho E a curva de volume juntas - faz
+        // sentido: frenagem mais forte exigida = chiado mais alto.
+        f = fDecel
+        f *= 0.5
+        f /= fForce
         IF f > 1.0
             f = 1.0
         ENDIF
-
-        GET_AUDIO_SFX_VOLUME (fVol)     // volume de efeitos do menu (0xB5FCCC)
-        fVol *= fVolume
-        // A pressao do pedal pesa no volume, mas so depois de um piso de 50%:
-        // um toque leve daria 20% do volume e o chiado sumiria no barulho da
-        // rua. Aqui 0 vira 0.5 e 1.0 continua 1.0. fBrake ja e' lido de novo
-        // no proximo frame.
+        // ---- mais rapido = mais alto (piso de 0.25, teto de 1.0) ----
+        // O 3.6 converte o "~m/s" do GET_CAR_SPEED em km/h, como no mod
+        // original; fVel ja morreu como medida depois do fDecel acima.
+        fVel *= 3.6
+        fVel /= fRefSpeed
+        IF fVel > 1.0
+            fVel = 1.0
+        ENDIF
+        IF fVel < 0.25
+            fVel = 0.25
+        ENDIF
+        f *= fVel
+        // ---- o pedal ainda pesa, com piso de 50% ----
         fBrake *= 0.5
         fBrake += 0.5
-        fVol *= fBrake
-        fVol *= f                      // f = speed/RefSpeed, com piso de 0.25
-        CLAMP_FLOAT fVol 0.0 1.0 (fVol)
+        f *= fBrake
+        CLAMP_FLOAT f 0.0 1.0 (f)
+        RETURN
 
-        // Teto de 4 sons por frame: uma batida de 15 carros na sua frente nao
-        // pode virar 15 chiados ao mesmo tempo. (O iSounds volta a zero a cada
-        // frame; a avaliacao de carro nao mexe nele.)
-        IF iSounds < 4
+    // ===================================================================== cria
+    // Primeira vez que este carro chiadeia dentro desta frenagem: cria UM
+    // stream, liga nele e comeca a tocar em volume zero (o AdjustSound
+    // levanta o volume em seguida, e isso ja e' o fade-in).
+    CreateSound:
+        GOSUB BrakeVolume
+        // ---- teto global: 6 sons ao mesmo tempo no mundo inteiro ----
+        // Alem disso o carro NAO comeca a cantar agora, mas continua armado
+        // (var 1 = 1): na proxima frenagem dele o som toca, nada se perde.
+        IF iSounds < 6
             IF LOAD_3D_AUDIO_STREAM $pBuffer (hStream)
                 SET_AUDIO_STREAM_LOOPED hStream FALSE
                 SET_PLAY_3D_AUDIO_STREAM_AT_CAR hStream hVeh
-                SET_AUDIO_STREAM_VOLUME hStream fVol
+                SET_AUDIO_STREAM_VOLUME hStream 0.0
                 SET_AUDIO_STREAM_STATE hStream 1
-                iSounds += 1
+                SET_EXTENDED_CAR_VAR hVeh AUTO 3 hStream
+                SET_EXTENDED_CAR_VAR hVeh AUTO 4 0     // volume atual = 0
+                SET_EXTENDED_CAR_VAR hVeh AUTO 1 3     // agora este carro tem som
+                // NAO chama AdjustSound aqui de proposito: ele confere o estado
+                // do stream, e um stream recem-criado pode responder "parado"
+                // no mesmo frame em que foi ligado - e o script mataria o som
+                // recem-criado. O volume sobe a partir do proximo frame, pelo
+                // KeepSound (indiferenca de um frame, de uns 16 ms).
             ENDIF
+        ENDIF
+        RETURN
+
+    // =================================================================== mantem
+    // O carro ja tem som: mede a frenagem deste frame e manda o volume agir.
+    // Se a frenagem acabou, o alvo vira 0 e o AdjustSound desliga.
+    KeepSound:
+        GET_CAR_PEDALS hVeh f fBrake
+        GOSUB MeasureBrake
+        GOSUB BrakeVolume
+        GOSUB AdjustSound
+        RETURN
+
+    // =================================================================== desliga
+    // O som deste carro esta tocando, mas o carro parou de ser avaliado (saiu
+    // do raio da camera ou desligou o motor). Mesmo assim o som tem de sumir -
+    // e' aqui que o chiado de um carro abandonado nao fica tocando no mundo.
+    StopSound:
+        f = 0.0
+        GOSUB AdjustSound
+        RETURN
+
+    // =================================================================== ajusta
+    // Move o volume do som deste carro em direcao ao alvo f, com o passo dado
+    // por Fade (volume por segundo), e DESLIGA + REMOVE o stream no fim. Esta
+    // e' a rotina que resolve o bug do som continuar depois da frenagem: o
+    // som nao e' solto no mundo, ele pertence ao carro e so sai com ele.
+    AdjustSound:
+        // ---- handle do som deste carro (0 = nao ha som: nao ha o que fazer) ----
+        // A leitura mora aqui, e nao nos chamadores, porque o StopSound chega
+        // ate aqui sem ter lido o handle antes.
+        GET_EXTENDED_CAR_VAR hVeh AUTO 3 hStream
+        IF hStream = 0
+            RETURN
+        ENDIF
+
+        // ---- o som acabou sozinho? ----
+        // Um arquivo nao-loopado acaba por conta propria (o do jogador dura
+        // ~6 s; o placeholder deste repositorio, 1,2 s). Se a frenagem ainda
+        // estiver valendo, o certo e' comecar o som de novo; se ja acabou, o
+        // certo e' so limpar o registro. O GET_AUDIO_STREAM_STATE e' o que
+        // permite isso sem depender da duracao do arquivo.
+        GET_AUDIO_STREAM_STATE hStream (iValue)
+        IF iValue = 0
+            REMOVE_AUDIO_STREAM hStream
+            SET_EXTENDED_CAR_VAR hVeh AUTO 3 0
+            SET_EXTENDED_CAR_VAR hVeh AUTO 1 1
+            RETURN
+        ENDIF
+
+        // ---- volume atual (var. 4, em milesimos) virado de float ----
+        GET_EXTENDED_CAR_VAR hVeh AUTO 4 iValue
+        CSET_LVAR_FLOAT_TO_LVAR_INT fVol iValue
+        fVol *= 0.001
+
+        // ---- passo deste frame: volume por segundo (Fade) x dt ----
+        fIncr = fStep
+        fIncr *= fFade
+
+        // ---- move o volume em direcao ao alvo f ----
+        IF fVol > f
+            fVol -= fIncr             // fade-out / baixa
+            IF fVol < f
+                fVol = f
+            ENDIF
+        ELSE
+            fVol += fIncr             // fade-in / sobe
+            IF fVol > f
+                fVol = f
+            ENDIF
+        ENDIF
+        SET_AUDIO_STREAM_VOLUME hStream fVol
+
+        // ---- grava o volume novo (x1000) na var. 4 do carro ----
+        f = fVol
+        f *= 1000.0
+        CSET_LVAR_INT_TO_LVAR_FLOAT iValue f
+        SET_EXTENDED_CAR_VAR hVeh AUTO 4 iValue
+
+        // ---- chegou a zero? entao DESLIGA e REMOVE de verdade ----
+        // (SET_AUDIO_STREAM_STATE 0 + REMOVE_AUDIO_STREAM e' o que garante
+        //  que o chiado nao continue soando depois que o carro parou.)
+        IF fVol <= 0.0
+            SET_AUDIO_STREAM_STATE hStream 0
+            REMOVE_AUDIO_STREAM hStream
+            SET_EXTENDED_CAR_VAR hVeh AUTO 3 0
+            SET_EXTENDED_CAR_VAR hVeh AUTO 4 0
+            SET_EXTENDED_CAR_VAR hVeh AUTO 1 1   // desarmado: pode chiar de novo
         ENDIF
         RETURN
 }
@@ -506,9 +722,9 @@ SCRIPT_END
 // de som lido do .ini (ate 127 caracteres). Um LVAR_TEXT_LABEL nao serve aqui:
 // text label guarda so 7 (TEXT_LABEL) ou 15 (TEXT_LABEL16) caracteres, e um
 // caminho de arquivo tem 30 e poucos - o caminho era truncado e o script
-// achava que o arquivo nao existia. Ver BUILD.md, armadilha 3.
+// achava que o arquivo nao existia. Ver BUILD.md, armadilha A1.
 // ============================================================================
 txtSoundBuffer:
 DUMP
-00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
 ENDDUMP

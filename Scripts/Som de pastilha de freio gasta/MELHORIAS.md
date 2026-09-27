@@ -1,4 +1,4 @@
-# v2.5.1 → v2.8: o que mudou, e por quê
+# v2.5.1 → v2.9: o que mudou, e por quê
 
 Este documento é o detalhe técnico da reescrita. O resumo está no
 [`leiame (ou morra).txt`](leiame%20(ou%20morra).txt) (pt) e no
@@ -360,3 +360,118 @@ O `tools/test_model.py` foi reescrito em torno do novo núcleo e agora tem uma
 seção dedicada a provar o que o jogador pediu: **carro parado não canta, mesmo
 com o pé no freio, mesmo com `BrakeThreshold = 0`** (seção 1), mais a
 independência de FPS medida no volume do primeiro som (seção 8).
+
+---
+
+## 12. v2.8 → v2.9: o som tem fim
+
+**O problema relatado:** *"ao frear até o carro parar e soltar o freio, o som
+continua por alguns segundos"*.
+
+### O que acontecia
+
+A v2.8 (e a v2.5.1) tratavam o som como um **evento**: quando o gatilho
+disparava, o script carregava o stream, ligava no carro e seguia em frente. O
+handle do áudio nunca era guardado, então ninguém mais mexia naquele som. O
+arquivo tocava até o fim — e o do mod original dura ~6,165 s.
+
+Por que ninguém percebia antes: o `brakepad.wav` deste pacote dura 1,2 s, e
+1,2 s de chiado parece "o freio". Com o arquivo de 6 s (ou com uma frenagem de
+montanha), o chiado continuava com o carro já parado e o pé fora do pedal.
+
+### O que a v2.9 faz
+
+O som deixou de ser evento e passou a ser **estado do carro**. Cada carro guarda
+o handle do seu stream, e uma máquina de estados o mantém vivo enquanto a
+frenagem dura:
+
+- **nasce** quando a frenagem começa (desaceleração real + pé no freio);
+- **acompanha** — o volume é reavaliado todo frame a partir da frenagem atual;
+- **morre** quando a frenagem acaba: o volume desce linearmente até zero durante
+  `Fade` segundos, e só então o stream é *desligado e removido* de verdade
+  (`SET_AUDIO_STREAM_STATE 0` + `REMOVE_AUDIO_STREAM`), não apenas abaixado.
+
+"Acabou a frenagem" cobre todos os casos que deixam o carro mudo: pé fora do
+freio, o carro deixou de desacelerar, o carro parou, o carro saiu do raio da
+câmera, o motor foi desligado. Nenhum desses deixa som órfão no mundo.
+
+### O que cada carro guarda
+
+A v2.8 já reservava 4 variáveis estendidas por carro; a v2.9 usa as quatro.
+Isso não consumiu nenhum slot novo do script: o total de **variáveis locais**
+continua em 31 das 32 disponíveis (é esse número que o `tools/test_model.py`
+verifica).
+
+| var. | conteúdo |
+| --- | --- |
+| 1 | estado: `0` = ainda não avaliado · `1` = armado, pode chiar · `2` = descartado (avião/barco, tipo fora do `Vehicles`) · `3` = com som tocando |
+| 2 | velocidade do frame anterior (m/s × 1000) — é dela que sai a desaceleração |
+| 3 | handle do stream de áudio deste carro (`0` = nenhum som) |
+| 4 | volume atual do som (× 1000) — é esta que o *fade* move |
+
+Não existe um estado "desvanecendo": quando a frenagem acaba, o **alvo** de
+volume (`BrakeVolume`) simplesmente vira 0.0, e o `AdjustSound` caminha o volume
+atual até esse alvo no passo do `Fade`. Ao chegar em zero — e só aí — o stream é
+desligado e removido, e o carro volta ao estado `1` (armado), pronto para
+cantar de novo na próxima frenagem.
+
+O passo do *fade* é `(volume por segundo) × dt`, com `dt` em segundos — por isso
+o desvanecimento dura o mesmo em 30 ou 240 FPS (e o `.sc` calcula `1/Fade` uma
+vez só, na leitura do `.ini`).
+
+Uma sutileza que custou um bug: o `AdjustSound` **não** roda no mesmo frame em
+que o stream é criado. Um stream recém-ligado pode responder "parado" ao
+`GET_AUDIO_STREAM_STATE` naquele frame, e o script mataria o som que acabou de
+nascer. Por isso o volume só começa a subir no frame seguinte (~16 ms de
+diferença, inaudível).
+
+### Arquivo de qualquer duração
+
+O script não conhece a duração do som: ele não "lê o tamanho do arquivo". O
+que existe é **detecção de término natural** — a cada frame, o
+`GET_AUDIO_STREAM_STATE` diz se o stream ainda está tocando; se já acabou
+(retorna 0) e a frenagem ainda valia, o stream é removido, o carro rearma
+(estado `1`) e pode cantar de novo. Foi isso que permitiu validar o mesmo código com o
+placeholder de 1,2 s e com o `brakepad.mp3` de 6,165 s:
+
+- com 1,2 s e frenagem longa → toca, acaba, rearma, toca de novo;
+- com 6,165 s e frenagem curta → toca, é cortado no `Fade`, nunca sobrepõe.
+
+Como nunca existe mais de um stream por carro, **é impossível empilhar duas
+cópias do mesmo chiado** — a sobreposição que o `Cooldown` existia para evitar
+sumiu junto com a chave.
+
+### O `.ini`
+
+Saiu o `Cooldown`. Entrou o `Fade` (segundos, não milissegundos), que faz o
+outro trabalho: *quando o som some*. O mesmo tempo vale para a entrada — o
+chiado sobe devagar em vez de estalar no primeiro frame.
+
+### O que o modelo prova
+
+O `tools/test_model.py` tem agora **117 verificações** (eram 81), incluindo a
+que reproduce exatamente o relato do usuário:
+
+- frear até parar, soltar o freio → o som desaparece (`Fade`, ~0,2 s);
+- término natural com áudio de 6,165 s → rearma e reinicia, sem sobreposição;
+- 10 carros no pool → teto de 6 sons, sem estouro;
+- FPS 25/30/50/60/144/240 → mesmo comportamento, inclusive a curva do fade;
+- o volume do menu é respeitado, e `Volume = 1.0` chega a 100% (a v2.8 tinha um
+  teto extra de 0,7 que segurava o valor).
+
+### Curva de volume
+
+O volume instantâneo é `fDecel / (2 × BrakeForce)`, limitado a 1.0. Ou seja:
+**frear com o dobro da força mínima = volume máximo** — no próprio limite do
+gatilho o som já aparece a ~50%. Como o `BrakeForce` é o mesmo número que
+dispara o som, mexer nele muda o gatilho e a curva de volume juntas (faz
+sentido: frenagem mais forte exigida = chiado mais alto).
+
+Esse valor ainda é multiplicado por dois fatores, como o mod original:
+
+- a **velocidade** (`velocidade / RefSpeed`, com piso de 25% e teto de 1.0 — o
+  `× 3.6` é a conversão de m/s para km/h);
+- o **pedal** (`pedal × 0.5 + 0.5`, ou seja, piso de 50%).
+
+O resultado é limitado a 1.0. A v2.8 ainda tinha um teto extra de 0.7 acima
+disso, que impedia o `Volume = 1.0` do `.ini` de chegar ao máximo; foi removido.

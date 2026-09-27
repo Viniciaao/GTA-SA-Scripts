@@ -1,5 +1,5 @@
 ================================================================================
-          SOM DE PASTILHA DE FREIO GASTA - v2.8 (CLEO+, edicao NPCs)
+          SOM DE PASTILHA DE FREIO GASTA - v2.9 (CLEO+, edicao NPCs)
 ================================================================================
 
 Reescrita do zero em GTA3script do mod "Som de pastilha de freio gasta" v2.5.1
@@ -22,6 +22,34 @@ tratamento especial - ele passa pelo mesmo caminho dos outros, entao o que
 funciona pros NPCs funciona pra voce (e vice-versa).
 
 --------------------------------------------------------------------------------
+O SOM TEM FIM: ELE NASCE E MORRE COM A FRENAGEM
+--------------------------------------------------------------------------------
+Esta e' a correcao principal desta versao, e a resposta ao problema relatado na
+v2.8: ao frear ate o carro parar e soltar o freio, o chiado continuava soando
+por alguns segundos depois.
+
+O motivo era simples: o script disparava o som e nunca mais mexia nele. Ele jogava
+o arquivo no carro e esquecia o handle, entao o audio tocava ate o fim - e o
+arquivo do mod original dura ~6 segundos. Com o placeholder de 1,2 s nem dava
+para perceber.
+
+Agora o som PERTENCE ao carro:
+
+  - nasce quando a frenagem comeca (desaceleracao de verdade + pe no freio);
+  - o volume ACOMPANHA a frenagem, frame a frame: freada mais forte, chiado mais
+    alto, como na vida real;
+  - quando a frenagem acaba - voce soltou o freio, o carro deixou de frear ou o
+    carro parou - o volume desce ate zero em "Fade" segundos e o som e'
+    DESLIGADO E REMOVIDO de verdade, nao so abaixado;
+  - o mesmo vale quando o carro sai do raio da camera ou desliga o motor: o
+    chiado nao fica sozinho tocando no mundo.
+
+E o ciclo funciona com QUALQUER arquivo: um chiado de 1 s ou de 10 s, o script
+nao depende da duracao. Se a frenagem for longa e o arquivo acabar antes, o
+script comeca o chiado de novo - sempre UM som por carro, nunca duas copias
+sobrepostas.
+
+--------------------------------------------------------------------------------
 O QUE MUDOU EM RELACAO AO v2.5.1
 --------------------------------------------------------------------------------
 1. NPCs. A v2.5.1 so tocava o som no carro do jogador. Aqui qualquer veiculo do
@@ -38,11 +66,16 @@ O QUE MUDOU EM RELACAO AO v2.5.1
    velocidade, e segue o volume de efeitos do menu em todos os sons (a correcao
    de 2019, que antes so valia para o jogador).
 
-4. Cooldown. Com Cooldown = 0 e' um chiado por aperto no freio, exatamente
-   como a v2.5.1. Com Cooldown = 1500 (o padrao) o chiado se repete enquanto o
-   freio estiver apertado, que e' como a pastilha canta de verdade.
+4. O som tem fim de verdade. A v2.5.1 (e a v2.8) disparavam o som e largavam a
+   mao: o arquivo tocava inteiro, e com um som de ~6 s o chiado continuava
+   depois de voce soltar o freio. Agora o handle do audio stream e' guardado no
+   carro e, no fim da frenagem, o som e' desvanecido (Fade), desligado e
+   REMOVIDO. Um som so por carro, sem sobreposicao. A repeticao do chiado
+   enquanto o freio esta apertado agora e' decidida pelo TEMPO DO SEU ARQUIVO
+   (o script recomeca quando o arquivo acaba), entao nao existe mais intervalo
+   para ajustar - e nao tem como empilhar copias do mesmo chiado.
 
-5. Tudo independente de FPS (pressao e cooldown sao calculados em segundos e
+5. Tudo independente de FPS (o desvanecimento e' calculado em segundos e
    milissegundos, nao "por frame").
 
 6. O .ini e' lido uma vez so, e o som so e' disparado para carros dentro do
@@ -50,7 +83,7 @@ O QUE MUDOU EM RELACAO AO v2.5.1
 
 7. O gatilho e' a DESACELERACAO, como no mod original (isto vale para o
    jogador e para os NPCs). A v2.7 usava uma "pressao" que ia acumulando e
-   por isso cantava com o carro PARADO; a v2.8 mede a queda de velocidade de
+   por isso cantava com o carro PARADO; a v2.8 ja media a queda de velocidade
    verdade, entao soa como na vida real: cantiga quando freia de verdade, e
    SILENCIO com o carro parado, mesmo com o pe no freio. O ajuste e'
    BrakeForce (queda minima, em m/s2).
@@ -80,6 +113,11 @@ do mod original e' dos autores dele e nao e' nosso para redistribuir. Se voce te
 o som da v2.5.1, copie o arquivo dele para CLEO\BrakePadSound\brakepad.wav (ou
 aponte a chave SoundFile do .ini para o caminho dele, que aceita wav e mp3) e o
 mod passa a usar o seu.
+
+O script nao depende da duracao do arquivo: o brakepad deste pacote dura 1,2 s e
+o do mod original dura ~6 s, e os dois funcionam igual. O que decide o
+comportamento e' a chave Fade (quanto tempo o som leva para sumir quando a
+frenagem acaba), e nao o tamanho do wav/mp3.
 
 --------------------------------------------------------------------------------
 CONFIGURACAO (CLEO\BrakePadSound.ini)
@@ -129,12 +167,12 @@ CONFIGURACAO (CLEO\BrakePadSound.ini)
       Velocidade de referencia (km/h). O volume sobe junto com a velocidade
       ate 100% em RefSpeed (e nunca abaixo de 25%).
 
-  Cooldown = 1500
-      Intervalo (ms) entre chiados do mesmo carro. 0 = um por aperto no freio
-      (igual a v2.5.1): o carro trava depois de cantar e so volta a cantar
-      quando o freio for solto de verdade. 1500 = repete enquanto a frenagem
-      estiver forte, como a pastilha de verdade (cada chiado dura 1,2 s, entao
-      nao se sobrepoem).
+  Fade = 0.2
+      Em quantos SEGUNDOS o som desaparece quando a frenagem acaba (pe fora do
+      freio, o carro parou de frear, o carro parou). 0.2 = um quinto de segundo:
+      some antes de voce perceber. 0 = corte seco (so se o seu arquivo estalar no
+      fim). 0.5 = mais lento, se o seu arquivo tiver um rastro. O mesmo tempo
+      vale para a entrada: o chiado tambem sobe devagar em vez de estalar.
 
   Debug = 0
       1 = imprime na tela o valor de cada carro novo que aparece.
@@ -174,28 +212,37 @@ O script nao faz barulho nenhum / nao aparece nada
 NAO OUVI SOM NENHUM (nem no meu carro, nem no dos NPCs)
 
   A v2.6 tinha um bug que zerava a pressao de frenagem, e por isso ela ficava
-  calada em qualquer situacao. A v2.7 ja vem corrigida - mas, se voce ainda
+  calada em qualquer situacao. A v2.9 vem corrigida - mas, se voce ainda
   esta com a v2.6 instalada, confira esta ordem (o .cs antigo continua valendo
   ate o GTA fechar):
 
   1. Feche o jogo, troque o BrakePadSound.cs, abra o jogo de novo. Trocar o
      .cs com o jogo aberto nao troca nada: o script antigo continua rodando.
 
-  2. Ao abrir o jogo aparece "Som de pastilha v2.7 - <caminho> (ate ...,
+  2. Ao abrir o jogo aparece "Som de pastilha v2.9 - <caminho> (ate ...,
      raio ... m)". Confira se o caminho mostrado e' o do seu arquivo de som.
 
   3. Teste EM MOVIMENTO: accelerate ate uma velocidade de rua e freie. A v2.7
      e' uma pastilha gasta, entao ela canta com o carro andando. Para testar
-     parado: a v2.8 mede a desaceleracao, entao so canta freando de verdade.
+     parado: a v2.9 mede a desaceleracao, entao so canta freando de verdade.
 
   4. Se ainda assim nao tocar, ponha Debug = 1: o script imprime o valor de
      cada carro novo que passa por ele. Se nenhum carro aparecer na tela, o
      script nem esta rodando (volte ao item 1).
 
+O som continua soando depois de eu soltar o freio
+
+  Se a v2.8 faz isso, e' ela ainda instalada: o script dela disparava o audio e
+  nao mexia mais nele, entao o arquivo tocava inteiro (o do mod original dura ~6
+  s) depois que a frenagem ja tinha acabado. A v2.9 guarda o handle do som no
+  carro e desliga + remove no fim da frenagem. Feche o GTA, troque o
+  BrakePadSound.cs e abra o jogo de novo (o .cs antigo so sai da memoria
+  quando o GTA fecha). Se quiser ainda mais abrupto, ponha Fade = 0 no .ini.
+
 O som canta com o carro PARADO / nao para de cantar
 
-  Se a v2.7 canta parado, e' ela ainda instalada: feche o jogo e troque o
-  BrakePadSound.cs pela v2.8 (o arquivo antigo so sai da memoria quando o GTA
+  Se uma versao antiga canta parado, e' ela ainda instalada: feche o jogo e troque o
+  BrakePadSound.cs pela v2.9 (o arquivo antigo so sai da memoria quando o GTA
   fecha). A v2.8 nao canta parado - um carro parado nao desacelera. Se voce
   QUEER testar parado, nao e' por config: a v2.8 usa a desaceleracao, entao um
   carro parado e' silencio por definicao. Para ouvir na hora sem sair do lugar,
@@ -228,9 +275,10 @@ O som pode ser refeito com:
 
      python3 tools/make_sound.py
 
-E o modelo de tempo (pressao, gatilho, cooldown, volume) pode ser conferido
-sem o jogo - 81 verificacoes, incluindo "um som por aperto" em 30/60/144/240
-FPS e a ordem dos operandos do CSET (o bug que deixou a v2.6 muda):
+E o modelo de tempo (desaceleracao, gatilho, fade, fim do som, volume) pode ser
+conferido sem o jogo - 117 verificacoes, incluindo o caso relatado na v2.8 (freou
+ate parar e o som tem de sumir), a nao-sobreposicao com o audio de 6,165 s em
+30/60/144/240 FPS e a ordem dos operandos do CSET (o bug que deixou o mod mudo):
 
      python3 tools/test_model.py
 
@@ -244,6 +292,6 @@ Abordagem dos NPCs (padrao do CLEO+, eventos e audio stream): Junior_Djjr, no
 Opcoes CLEO+ usadas: GET_CAR_VALUE, GET_CAR_PEDALS, GET_VEHICLE_SUBCLASS,
    GET_ANY_CAR_NO_SAVE_RECURSIVE, EXTENDED_CAR_VARS, SET_SCRIPT_EVENT_CAR_CREATE,
    GET_AUDIO_SFX_VOLUME, audio streams.
-Som desta v2.8: sintetizado por tools/make_sound.py (o do mod original nao e'
+Som deste pacote: sintetizado por tools/make_sound.py (o do mod original nao e'
    redistribuido aqui).
 ================================================================================
