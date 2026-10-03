@@ -71,13 +71,14 @@ it is game physics, the sound follows on its own):
 - Full throttle in any gear now pulls cleanly TO THE REDLINE: the RPM
   pins at the gear limit with a rev-limiter buzz (ShiftThreshold 0.97)
   instead of hesitating/cutting early. No auto-upshift, ever.
-- Revving with the clutch pressed now makes SOUND (ClutchRevSim = 1): with
-  the car stopped, the engine revs via the transmission's internal speed
-  while the real pedal stays zeroed — no movement, NO BRAKES. The vanilla
-  audio follows it, and Soundize follows it whenever it derives RPM from
-  that speed (if your Soundize build doesn't, only vanilla audio revs).
-- Shifting gears no longer brakes the car: clutch pressed = the car just
-  coasts on drag, like a real clutch.
+- Revving with the clutch pressed or in neutral now makes FULL SOUND
+  (ClutchRevSim = 1): the CPad throttle is zeroed before physics runs (no
+  movement, NO BRAKES, and no unwanted brake lights), while CVehicle's
+  engine audio fields (m_fGasPedal +0x49C, m_fWheelSpinForAudio +0x4BC)
+  are driven directly before m_vehicleAudio.Service() — both Soundize and
+  vanilla audio rev freely all the way to the limiter.
+- Shifting gears no longer brakes the car or lights up the brake lights:
+  clutch pressed = the car just coasts on drag, like a real clutch.
 
 HIGH-GEAR LAUNCH (Soundize users, read this)
 --------------------------------------------

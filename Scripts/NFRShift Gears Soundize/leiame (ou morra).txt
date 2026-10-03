@@ -134,21 +134,21 @@ Os textos usam o formato GXT do jogo (marcador de número ~1~). Se aparecer
 "%i" literal na tela, o arquivo NFRShift Gears Soundize.fxt não está
 instalado em CLEO/CLEO_TEXT (ou está uma versão velha).
 
-PASSAR MARCHA SEM FREAR
------------------------
-Corrigido: com a embreagem pisada o script não aplica mais freio nenhum —
-o carro desacelera só de arrasto, como apertar a embreagem de verdade.
-(Em versões anteriores, acelerar com a embreagem pisada acionava freio.)
+PASSAR MARCHA SEM FREAR (E SEM LUZ DE FREIO)
+--------------------------------------------
+Corrigido: com a embreagem pisada ou ao cortar giro no topo da marcha, o
+script não aplica mais freio nem valores negativos no acelerador (que
+acendiam a luz de freio do carro) — o carro desacelera só de arrasto e a
+luz de freio só acende quando você realmente pisa no freio.
 
-RE DE VERDADE (ClutchRevSim = 1)
---------------------------------
-Acelerar PARADO — no ponto morto ou com a embreagem pisada — agora faz o
-motor SUBIR DE GIRO RAPIDO até o talo, sem as rodas girarem, como na vida
-real. O gás real chega no motor (mesmo caminho do "freio de mão +
-acelerar" do jogo, que o Soundize acompanha por usar as marchas/estado do
-jogo) e um freio interno segura o carro no lugar enquanto você está
-parado. Em movimento, a embreagem só desacopla: sem freio nenhum, o carro
-desacelera de arrasto ao passar marcha.
+GIRO LIVRE NA EMBREAGEM E PONTO MORTO (ClutchRevSim = 1)
+--------------------------------------------------------
+Acelerar no ponto morto ou com a embreagem pisada (parado ou em movimento)
+agora faz o motor SUBIR DE GIRO até o corte com som de aceleração (tanto no
+Soundize quanto no áudio nativo), sem o carro andar e sem acionar o freio.
+O acelerador do CPad (0xB73478) é zerado antes da física rodar, enquanto os
+campos de áudio do veículo (m_fGasPedal +0x49C, m_fWheelSpinForAudio +0x4BC)
+são alimentados antes de m_vehicleAudio.Service().
 
 
 
