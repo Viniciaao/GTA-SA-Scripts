@@ -270,7 +270,12 @@ WHILE TRUE
                 WHILE IS_KEY_PRESSED clutchKey
                 AND timera < 50
                     WAIT 0
-                    WRITE_MEMORY pGasPedal 2 0 FALSE
+                    IF DOES_VEHICLE_EXIST iCar
+                        CLEO_CALL ClutchRevSim 0 iCar pVeh gear iniWriteGearGame clutchRevSim
+                        CLEO_CALL GearHelper 0 iCar gear iniGearHelper pVeh sndLoaded pIsBank pGetRPM pGetMaxRPM pGetGear iniShowRPM
+                    ELSE
+                        WRITE_MEMORY pGasPedal 2 0 FALSE
+                    ENDIF
                 ENDWHILE
 
                 IF timera < 50
@@ -284,6 +289,11 @@ WHILE TRUE
                     REQUEST_ANIMATION changegear
                     WHILE NOT HAS_ANIMATION_LOADED changegear
                         WAIT 0
+                        IF DOES_VEHICLE_EXIST iCar
+                            CLEO_CALL ClutchRevSim 0 iCar pVeh gear iniWriteGearGame clutchRevSim
+                        ELSE
+                            WRITE_MEMORY pGasPedal 2 0 FALSE
+                        ENDIF
                     ENDWHILE
                 ENDIF
 
@@ -297,36 +307,13 @@ WHILE TRUE
                             BREAK
                         ENDIF
 
-                        // Embreagem pisada: desacopla o motor. PARADO,
-                        // acelerar da um rev DE VERDADE (gas real no motor +
-                        // carro segurado no lugar); em movimento so desacopla
-                        // (o carro desacelera so de arrasto, SEM freio)
-                        IF IS_BUTTON_PRESSED 0 16
-                            IF IS_CAR_STOPPED iCar
-                                WRITE_MEMORY pGasPedal 2 255 FALSE
-                                APPLY_BRAKES_TO_PLAYERS_CAR 0 1
-                                CLEO_CALL ClutchRevSim 0 iCar fThresh clutchRevSim
-                            ELSE
-                                WRITE_MEMORY pGasPedal 2 0 FALSE
-                                APPLY_BRAKES_TO_PLAYERS_CAR 0 0
-                            ENDIF
-                        ELSE
-                            WRITE_MEMORY pGasPedal 2 0 FALSE
-                            APPLY_BRAKES_TO_PLAYERS_CAR 0 0
-                        ENDIF
+                        // Embreagem pisada: desacopla o motor da transmissao
+                        // sem acionar o freio/luz de freio e permite girar o
+                        // motor livremente no acelerador (parado ou andando).
+                        CLEO_CALL ClutchRevSim 0 iCar pVeh gear iniWriteGearGame clutchRevSim
 
                         IF IS_KEY_PRESSED VK_KEY_E
                             SET_CAR_ENGINE_ON iCar 1
-                        ENDIF
-
-                        IF IS_BUTTON_PRESSED 0 14
-                        AND IS_CAR_STOPPED iCar
-                            APPLY_BRAKES_TO_PLAYERS_CAR 0 1
-                        ELSE
-                            IF NOT IS_CAR_STOPPED iCar
-                            AND IS_BUTTON_PRESSED 0 14
-                                WRITE_MEMORY pGasPedal 2 -255 FALSE
-                            ENDIF
                         ENDIF
 
                         IF iSubclass = VEHICLE_SUBCLASS_BIKE
@@ -355,7 +342,7 @@ WHILE TRUE
                                 AND IS_KEY_PRESSED clutchKey
                                     WAIT 0
 
-                                    WRITE_MEMORY pGasPedal 2 0 FALSE
+                                    CLEO_CALL ClutchRevSim 0 iCar pVeh gear iniWriteGearGame clutchRevSim
                                     IF NOT gear = 1
                                         DRAW_SPRITE 5 gear_pointer mouseY 70.0 150.0 255 255 255 255
                                     ELSE
@@ -377,6 +364,7 @@ WHILE TRUE
                                 AND IS_CHAR_SITTING_IN_ANY_CAR scplayer
                                 AND IS_KEY_PRESSED clutchKey
                                     WAIT 0
+                                    CLEO_CALL ClutchRevSim 0 iCar pVeh gear iniWriteGearGame clutchRevSim
                                     DRAW_SPRITE 4 gear_pointer mouseY 70.0 150.0 255 255 255 255
                                     USE_TEXT_COMMANDS 0
                                 ENDWHILE
@@ -493,36 +481,10 @@ Transmission:
 
         SWITCH gear
             CASE 0
-                IF VehSpeed > 0.05
-                OR VehSpeed < -0.05
-                    // em movimento: neutro so desacopla (sem gas, sem freio)
-                    IF IS_BUTTON_PRESSED 0 16
-                        WRITE_MEMORY pointer 2 0 FALSE
-                    ENDIF
-
-                    IF IS_BUTTON_PRESSED 0 14
-                        IF VehSpeed < 0.0
-                        OR IS_CAR_STOPPED c
-                            APPLY_BRAKES_TO_PLAYERS_CAR 0 1
-                        ENDIF
-                    ELSE
-                        APPLY_BRAKES_TO_PLAYERS_CAR 0 0
-                    ENDIF
-                ELSE
-                    // PARADO: acelerar no ponto morto = rev DE VERDADE. O gas
-                    // real chega no motor e o carro e segurado parado - a
-                    // transmissao gira o RPM nativamente (mesmo caminho do
-                    // "freio de mao + acelerar" do vanilla, que o Soundize
-                    // acompanha por usar as marchas/estado do jogo)
-                    IF IS_BUTTON_PRESSED 0 16
-                        WRITE_MEMORY pointer 2 255 FALSE
-                        APPLY_BRAKES_TO_PLAYERS_CAR 0 1
-                        CLEO_CALL ClutchRevSim 0 c fThresh clutchRevSim
-                    ELSE
-                        WRITE_MEMORY pointer 2 0 FALSE
-                        APPLY_BRAKES_TO_PLAYERS_CAR 0 0
-                    ENDIF
-                ENDIF
+                // Ponto morto (parado ou em movimento): desacopla o motor da
+                // transmissao sem mover o carro e sem acender a luz de freio,
+                // permitindo girar o motor livremente no acelerador.
+                CLEO_CALL ClutchRevSim 0 c pVeh gear iniWriteGearGame clutchRevSim
                 BREAK
             DEFAULT
 
@@ -560,33 +522,16 @@ Transmission:
                 ENDIF
 
                 IF VehSpeed > GearSpeedLimit
-                    // acima do limite da marcha:
+                    // acima do limite da marcha: corta o gas sem usar valores
+                    // negativos (que acionariam m_fBreakPedal / luz de freio).
                     timerb = 0
+                    WRITE_MEMORY pointer 2 0 FALSE
                     IF IS_BUTTON_PRESSED 0 16
-                        // corta-giro: corta o gas e deixa o RPM cravado NO
-                        // TALO (o som nao hesita nem volta, igual a vida real)
-                        WRITE_MEMORY pointer 2 0 FALSE
-                    ELSE
-                        IF fn < -0.3
-                            WRITE_MEMORY pointer 2 -200 FALSE
-                        ELSE
-                            IF fn < 0.0
-                            AND fn > -0.009
-                                WRITE_MEMORY pointer 2 0 FALSE
-                            ELSE
-                                IF fn < -0.009
-                                AND fn > -0.1
-                                    WRITE_MEMORY pointer 2 -20 FALSE
-                                ELSE
-                                    IF fn < -0.1
-                                    AND fn > -0.25
-                                        WRITE_MEMORY pointer 2 -40 FALSE
-                                    ELSE
-                                        WRITE_MEMORY pointer 2 -80 FALSE
-                                    ENDIF
-                                ENDIF
-                            ENDIF
-                        ENDIF
+                    AND IS_CAR_ENGINE_ON c
+                        // corta-giro: mantem m_fGasPedal=1.0 pro Soundize
+                        // cravar o giro no talo enquanto a fisica recebe 0
+                        stallFlag = pVeh + 0x49C // CVehicle.m_fGasPedal
+                        WRITE_MEMORY stallFlag 4 1.0 FALSE
                     ENDIF
                 ELSE
                     IF IS_BUTTON_PRESSED 0 16
@@ -663,7 +608,10 @@ Transmission:
                                     GOSUB KillEngine
                                 ENDIF
                             ELSE
-                                gas = 50
+                                IF NOT IS_BUTTON_PRESSED 0 14
+                                AND VehSpeed >= 0.0
+                                    gas = 50
+                                ENDIF
                             ENDIF
                         ELSE
                             IF realStart = 1
@@ -676,6 +624,8 @@ Transmission:
                                     ENDIF
                                 ELSE
                                     IF gear = 1
+                                    AND NOT IS_BUTTON_PRESSED 0 14
+                                    AND VehSpeed >= 0.0
                                         fn = GearSpeedLimit / 3.0
                                         IF VehSpeed <= fn
                                             gas = 50 // marcha lenta da 1a
@@ -683,9 +633,12 @@ Transmission:
                                     ENDIF
                                 ENDIF
                             ELSE
-                                fn = GearSpeedLimit / 3.0
-                                IF VehSpeed <= fn
-                                    gas = 50
+                                IF NOT IS_BUTTON_PRESSED 0 14
+                                AND VehSpeed >= 0.0
+                                    fn = GearSpeedLimit / 3.0
+                                    IF VehSpeed <= fn
+                                        gas = 50
+                                    ENDIF
                                 ENDIF
                             ENDIF
                         ENDIF
@@ -708,9 +661,13 @@ Transmission:
                     IF VehSpeed < 0.0
                     OR IS_CAR_STOPPED c
                         APPLY_BRAKES_TO_PLAYERS_CAR 0 1
+                    ELSE
+                        APPLY_BRAKES_TO_PLAYERS_CAR 0 0
                     ENDIF
                 ELSE
                     APPLY_BRAKES_TO_PLAYERS_CAR 0 0
+                    stallFlag = pVeh + 0x4A0 // CVehicle.m_fBreakPedal
+                    WRITE_MEMORY stallFlag 4 0.0 FALSE
                 ENDIF
                 BREAK
             CASE 7 //MARCHA RÉ
@@ -721,25 +678,39 @@ Transmission:
 
                     IF VehSpeed < 0.003
                     AND VehSpeed > -0.07
-                        gas = -50
+                        IF realStart = 1
+                        AND VehSpeed > -0.003
+                            IF timerb > 600
+                                GOSUB KillEngine
+                            ENDIF
+                            gas = 0
+                        ELSE
+                            gas = -50
+                        ENDIF
                     ELSE
                         gas = 0
                         IF VehSpeed > 0.003
                             GOSUB KillEngine
                         ENDIF
                     ENDIF
+                ENDIF
 
-                    IF IS_BUTTON_PRESSED 0 14
-                        IF VehSpeed < 0.0
-                        OR IS_CAR_STOPPED c
-                            APPLY_BRAKES_TO_PLAYERS_CAR 0 1
-                        ENDIF
+                IF IS_BUTTON_PRESSED 0 14
+                    IF VehSpeed < 0.0
+                    OR IS_CAR_STOPPED c
+                        APPLY_BRAKES_TO_PLAYERS_CAR 0 1
                     ELSE
                         APPLY_BRAKES_TO_PLAYERS_CAR 0 0
                     ENDIF
+                ELSE
+                    APPLY_BRAKES_TO_PLAYERS_CAR 0 0
                 ENDIF
 
-                WRITE_MEMORY pointer 2 gas FALSE
+                IF NOT IS_CAR_ENGINE_ON c
+                    WRITE_MEMORY pointer 2 0 FALSE
+                ELSE
+                    WRITE_MEMORY pointer 2 gas FALSE
+                ENDIF
 
                 BREAK
         ENDSWITCH
@@ -928,18 +899,26 @@ CLEO_RETURN 0
 // ShiftThreshold impede a velocidade de cruzar o ponto de troca).
 // A fisica do jogo usa essa marcha, e o Soundize usa as marchas do jogo.
 WriteGearToGame:
-    LVAR_INT pVeh gear maxGears p n
+    LVAR_INT pVeh gear maxGears p n targetGear
 
     IF gear >= 1
     AND gear <= maxGears
-        p = pVeh + 0x4B4 // CVehicle.m_nCurrentGear
-        READ_MEMORY p 1 FALSE n
-        IF NOT n = gear
-            WRITE_MEMORY p 1 gear FALSE
+        targetGear = gear
+    ELSE
+        IF gear = 0
+            targetGear = 1
+        ELSE
+            CLEO_RETURN 0
         ENDIF
-        p = pVeh + 0x4B8 // CVehicle.m_fGearChangeCount
-        WRITE_MEMORY p 4 0.0 FALSE
     ENDIF
+
+    p = pVeh + 0x4B4 // CVehicle.m_nCurrentGear
+    READ_MEMORY p 1 FALSE n
+    IF NOT n = targetGear
+        WRITE_MEMORY p 1 targetGear FALSE
+    ENDIF
+    p = pVeh + 0x4B8 // CVehicle.m_fGearChangeCount
+    WRITE_MEMORY p 4 0.0 FALSE
 
 CLEO_RETURN 0
 }
@@ -1049,50 +1028,80 @@ CLEO_RETURN 0 mSpeed
 }
 
 {
-// CLEO_CALL ClutchRevSim 0 car fThresh enabled
+// CLEO_CALL ClutchRevSim 0 car pVeh gear writeGear enabled
 //
-// Simula o motor girando com a embreagem pisada (ou em ponto morto), com o
-// carro parado: sobe a velocidade INTERNA da transmissao (fCurrentSpeed) como
-// se o motor estivesse sendo acelerado. O pedal real continua zerado, entao o
-// carro NAO anda e NAO freia. O som padrao do jogo acompanha essa velocidade;
-// o Soundize tambem acompanha quando calcula o RPM por ela.
-// Em movimento nao mexe em nada (a embreagem so silencia o motor, o carro
-// desacelera por arrasto, como na vida real).
+// Desacopla o motor da transmissao (embreagem pisada ou ponto morto) sem
+// mover o veiculo e sem acionar o freio/luz de freio:
+// - Zera o acelerador no CPad (0xB73478) ANTES de ProcessControlInputs,
+//   garantindo que a fisica (CalculateDriveAcceleration) receba m_fGasPedal=0
+//   e m_fBreakPedal=0 (carro nao anda parado e nao freia em movimento).
+// - Escreve diretamente nos campos de CVehicle lidos pelo Soundize e pelo
+//   CAEVehicleAudioEntity em m_vehicleAudio.Service() (que roda no inicio
+//   de ProcessControl, ANTES de ProcessControlInputs):
+//     * CVehicle+0x49C (m_fGasPedal) = 1.0f acelerando / 0.0f solto
+//     * CVehicle+0x4A0 (m_fBreakPedal) = 0.0f (luz de freio apagada)
+//     * CVehicle+0x4BC (m_fWheelSpinForAudio) = 8.0f / 1.0f (> 0.6f ativa o
+//       modo clutch/free-rev no Soundize e no audio nativo)
+//     * CVehicle+0x428 bit 5 (bIsHandbrakeOn) e CAutomobile+0x961
+//       (m_nWheelsOnGround = 0) - ambos sao recalculados logo em seguida por
+//       ProcessControlInputs / ProcessControl antes da fisica e das luzes.
 ClutchRevSim:
-    LVAR_INT car
-    LVAR_FLOAT fThresh
-    LVAR_INT enabled p i
-    LVAR_FLOAT f1st fTgt fCur
+    LVAR_INT car pVeh gear writeGear enabled
+    LVAR_INT p flags maxGears sub
+    LVAR_FLOAT fCur
 
-    IF IS_CAR_ENGINE_ON car
-        GET_VEHICLE_POINTER car p
-        p += 0x384 // CVehicle.tHandlingData
-        READ_MEMORY p 4 FALSE p
-        p += 0x2C  // tHandlingData.CTransmission
-        i = p + 0x0C
-        i += 0x4   // aGears[1].fChangeUpVelocity
-        READ_MEMORY i 4 FALSE f1st
-        p += 0x64  // CTransmission.fCurrentSpeed
-        READ_MEMORY p 4 FALSE fCur
+    p = 0xB73458
+    p += 0x20
+    WRITE_MEMORY p 2 0 FALSE
 
-        IF fCur < 0.6
-        AND fCur > -0.6
-            IF enabled = 1
-            AND IS_BUTTON_PRESSED 0 16
-                // sobe o giro RAPIDO ate o talo da 1a (varredura completa,
-                // como um rev de ponto morto na vida real)
-                fTgt = f1st * fThresh
-                fTgt -= fCur
-                fTgt *= 0.25
-                fCur +=@ fTgt
-            ELSE
-                IF fCur > 0.01
-                    fTgt = fCur * 0.5
-                    fCur -=@ fTgt
-                ENDIF
-            ENDIF
-            WRITE_MEMORY p 4 fCur FALSE
+    IF IS_BUTTON_PRESSED 0 14
+        CLEO_CALL GetCurrentVehicleSpeed 0 car fCur
+        IF fCur <= 0.02
+        OR IS_CAR_STOPPED car
+            APPLY_BRAKES_TO_PLAYERS_CAR 0 1
+        ELSE
+            APPLY_BRAKES_TO_PLAYERS_CAR 0 0
         ENDIF
+    ELSE
+        APPLY_BRAKES_TO_PLAYERS_CAR 0 0
+        p = pVeh + 0x4A0 // CVehicle.m_fBreakPedal
+        WRITE_MEMORY p 4 0.0 FALSE
+    ENDIF
+
+    IF writeGear = 1
+        GET_CAR_NUMBER_OF_GEARS car maxGears
+        CLEO_CALL WriteGearToGame 0 pVeh gear maxGears
+    ENDIF
+
+    IF enabled = 1
+    AND IS_CAR_ENGINE_ON car
+        p = pVeh + 0x428 // CVehicle.m_nVehicleFlags[0]
+        READ_MEMORY p 1 FALSE flags
+        SET_BIT flags 5  // bIsHandbrakeOn (temporario para m_vehicleAudio.Service)
+        WRITE_MEMORY p 1 flags FALSE
+
+        GET_VEHICLE_SUBCLASS car sub
+        IF NOT sub = VEHICLE_SUBCLASS_BIKE
+            p = pVeh + 0x961 // CAutomobile.m_nWheelsOnGround
+            WRITE_MEMORY p 1 0 FALSE
+        ENDIF
+
+        IF IS_BUTTON_PRESSED 0 16
+            p = pVeh + 0x49C // CVehicle.m_fGasPedal
+            WRITE_MEMORY p 4 1.0 FALSE
+            p = pVeh + 0x4BC // CVehicle.m_fWheelSpinForAudio
+            WRITE_MEMORY p 4 8.0 FALSE
+        ELSE
+            p = pVeh + 0x49C // CVehicle.m_fGasPedal
+            WRITE_MEMORY p 4 0.0 FALSE
+            p = pVeh + 0x4BC // CVehicle.m_fWheelSpinForAudio
+            WRITE_MEMORY p 4 1.0 FALSE
+        ENDIF
+    ELSE
+        p = pVeh + 0x49C // CVehicle.m_fGasPedal
+        WRITE_MEMORY p 4 0.0 FALSE
+        p = pVeh + 0x4BC // CVehicle.m_fWheelSpinForAudio
+        WRITE_MEMORY p 4 0.0 FALSE
     ENDIF
 
 CLEO_RETURN 0
